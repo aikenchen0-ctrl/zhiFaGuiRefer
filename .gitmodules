@@ -7,3 +7,6 @@
 [submodule "concepts/appagentx"]
 	path = concepts/appagentx
 	url = https://github.com/Westlake-AGI-Lab/AppAgentX.git
+[submodule "exploration/droidagent"]
+	path = exploration/droidagent
+	url = https://github.com/coinse/droidagent.git
