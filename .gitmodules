@@ -10,3 +10,9 @@
 [submodule "exploration/droidagent"]
 	path = exploration/droidagent
 	url = https://github.com/coinse/droidagent.git
+[submodule "memory/mobiagent"]
+	path = memory/mobiagent
+	url = https://github.com/IPADS-SAI/MobiAgent.git
+[submodule "skill-packaging/ghost-in-the-droid"]
+	path = skill-packaging/ghost-in-the-droid
+	url = https://github.com/ghost-in-the-droid/android-agent.git
