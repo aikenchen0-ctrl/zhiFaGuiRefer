@@ -1,3 +1,6 @@
 [submodule "runtime/zafiro"]
 	path = runtime/zafiro
 	url = https://github.com/niki914/zafiro.git
+[submodule "execution/aries-ai"]
+	path = execution/aries-ai
+	url = https://github.com/ZG0704666/Aries-AI.git
