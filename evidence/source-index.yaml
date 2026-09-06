@@ -1,0 +1,31 @@
+sources:
+  - id: aries-ai
+    url: https://github.com/ZG0704666/Aries-AI
+    role: execution-layer
+    license: AGPL-3.0
+    evidence_level: L2
+  - id: zafiro
+    url: https://github.com/niki914/zafiro
+    role: agent-runtime
+    license: MIT
+    evidence_level: L2
+  - id: mobiagent
+    url: https://github.com/IPADS-SAI/MobiAgent
+    role: action-memory
+    evidence_level: L2
+  - id: mobile-agent-e
+    url: https://github.com/X-PLUG/MobileAgent/tree/main/Mobile-Agent-E
+    role: skill-generation
+    evidence_level: L2
+  - id: droidagent
+    url: https://github.com/coinse/droidagent
+    role: offline-exploration
+    evidence_level: L2
+  - id: ghost-in-the-droid
+    url: https://github.com/ghost-in-the-droid/android-agent
+    role: skill-packaging
+    evidence_level: L2
+  - id: appagentx
+    url: https://github.com/Westlake-AGI-Lab/AppAgentX
+    role: conceptual-reference
+    evidence_level: L2
