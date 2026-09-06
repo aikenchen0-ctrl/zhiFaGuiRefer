@@ -4,3 +4,6 @@
 [submodule "execution/aries-ai"]
 	path = execution/aries-ai
 	url = https://github.com/ZG0704666/Aries-AI.git
+[submodule "concepts/appagentx"]
+	path = concepts/appagentx
+	url = https://github.com/Westlake-AGI-Lab/AppAgentX.git
