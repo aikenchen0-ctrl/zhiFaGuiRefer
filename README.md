@@ -42,6 +42,14 @@ Android 非接口化 GUI Agent 技术参考仓库。
 | 技能封装 | [Ghost in the Droid](https://github.com/ghost-in-the-droid/android-agent) | 元素、动作、工作流、注册和版本管理 |
 | 概念参考 | [AppAgentX](https://github.com/Westlake-AGI-Lab/AppAgentX) | 重复轨迹演化为高级动作 |
 
+## 整合注意
+
+- `Aries-AI`：补齐 API 30-33 的旧 Virtual Display 接口，并验证 EGL、IME、任务迁移和输入返回值；ROM 声明必须以真机证据为准。
+- `ClosePaw`：优先复用生命周期、Binder 清理、敏感应用阻断和错误可观测性；隐藏 API 保留版本探测。
+- `Operit`：Shower 功能宽，但 ColorOS、MIUI、鸿蒙已有 UI、无障碍和文件访问问题；权限按功能拆分并逐 ROM 验证。
+- `Zafiro`：主要提供 Accessibility、Root/Shizuku、Python、MCP、Skill 和 Xposed，不是系统 Virtual Display 实现；厂商语音助手接管需单独适配。
+- 所有参考：区分功能声明、源码实现和设备实测；移植前检查许可证、权限/数据边界、后台生命周期和失败清理。
+
 ## 目录
 
 - `references/`：项目定位、源码索引和证据记录
