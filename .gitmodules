@@ -4,6 +4,12 @@
 [submodule "execution/aries-ai"]
 	path = execution/aries-ai
 	url = https://github.com/ZG0704666/Aries-AI.git
+[submodule "execution/closepaw"]
+	path = execution/closepaw
+	url = https://github.com/imoonkey/closepaw.git
+[submodule "execution/operit"]
+	path = execution/operit
+	url = https://github.com/AAswordman/Operit.git
 [submodule "concepts/appagentx"]
 	path = concepts/appagentx
 	url = https://github.com/Westlake-AGI-Lab/AppAgentX.git
