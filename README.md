@@ -42,6 +42,12 @@ Android 非接口化 GUI Agent 技术参考仓库。
 | 技能封装 | [Ghost in the Droid](https://github.com/ghost-in-the-droid/android-agent) | 元素、动作、工作流、注册和版本管理 |
 | 概念参考 | [AppAgentX](https://github.com/Westlake-AGI-Lab/AppAgentX) | 重复轨迹演化为高级动作 |
 
+## 源码复核后的当前根工程结论
+
+面向“全域 AI 助手”，当前推荐 **ClawGUI 作为总根工程和控制面**；`Operit` 作为 Android 文件、OCR、文档、Shower 和端侧工具能力底座，`ClosePaw` 作为虚拟屏执行内核。`KnowAct`、`ClawGUI-Skills`、`PowerMem`、`X-OmniClaw`、`local-photo-search` 等只按适配器和 Provider 接入。
+
+旧的 Android 优先方案仍保留在 [`decision-records/001-main-project-and-reference-modules.md`](decision-records/001-main-project-and-reference-modules.md) 作为历史记录；基于实际源码复核后的五类迁移策略、模块需求、直接照搬清单、吸收清单和取舍，统一以 [`decision-records/002-source-review-and-final-integration-list.md`](decision-records/002-source-review-and-final-integration-list.md) 为准。
+
 ## 整合注意
 
 - `Aries-AI`：补齐 API 30-33 的旧 Virtual Display 接口，并验证 EGL、IME、任务迁移和输入返回值；ROM 声明必须以真机证据为准。
@@ -90,9 +96,9 @@ Android 非接口化 GUI Agent 技术参考仓库。
 | 方案 | 根工程 | 适用目标 | 优势 | 代价 |
 |---|---|---|---|---|
 | A | [ClawGUI](https://github.com/ZJU-REAL/ClawGUI) 的 `clawgui-agent` | 全域控制面和跨设备服务参考 | 已有任务循环、会话、记忆、Episode、模型 API、远程渠道和多设备后端 | 需要接入 Android 原生服务，并处理 Python/Kotlin 边界 |
-| B（推荐） | [Operit](https://github.com/AAswordman/Operit) Android 应用 | Android 为第一运行端的全域助手 | 原生工具、Shower、OCR、文档转换、向量记忆、模型、工作流和后台服务最完整 | 必须拆分大单体、权限和 ROM 特判，并补跨设备协议 |
+| B | [Operit](https://github.com/AAswordman/Operit) Android 应用 | Android 为第一运行端的全域助手 | 原生工具、Shower、OCR、文档转换、向量记忆、模型、工作流和后台服务最完整 | 必须拆分大单体、权限和 ROM 特判，并补跨设备协议 |
 
-最终选择方案 B。`Operit` 作为 Android 产品根工程，`ClawGUI` 提供全域控制面、远程渠道和跨设备协议参考，`ClosePaw` 承担虚拟屏执行内核；`ClosePaw` 不作为根工程，因为它没有完整的模型、工具、记忆和跨设备控制面。完整依据和持续更新见 [`decision-records/001-main-project-and-reference-modules.md`](decision-records/001-main-project-and-reference-modules.md)。
+早期方案曾选择 B（Operit 作为 Android 产品根工程）。该结论已被基于源码复核的 `002-source-review-and-final-integration-list.md` 更新：当前总根工程选择 A（ClawGUI 控制面），Operit 降级为 Android 能力适配器，ClosePaw 继续承担虚拟屏执行内核。
 
 ### 模块需求与来源
 
