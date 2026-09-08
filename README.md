@@ -89,10 +89,10 @@ Android 非接口化 GUI Agent 技术参考仓库。
 
 | 方案 | 根工程 | 适用目标 | 优势 | 代价 |
 |---|---|---|---|---|
-| A（推荐） | [ClawGUI](https://github.com/ZJU-REAL/ClawGUI) 的 `clawgui-agent` | 全域助手：手机、电脑、浏览器、云端和多渠道 | 已有任务循环、会话、记忆、Episode、模型 API、远程渠道和多设备后端 | 需要接入 Android 原生服务，并处理 Python/Kotlin 边界 |
-| B | [Operit](https://github.com/AAswordman/Operit) Android 应用 | Android-first：本地工具、文件、文档和自动化 | 原生工具、Shower、OCR、文档转换、向量记忆和工作流最完整 | 工程单体大、权限和 ROM 特判耦合；跨电脑和多渠道需重建 |
+| A | [ClawGUI](https://github.com/ZJU-REAL/ClawGUI) 的 `clawgui-agent` | 全域控制面和跨设备服务参考 | 已有任务循环、会话、记忆、Episode、模型 API、远程渠道和多设备后端 | 需要接入 Android 原生服务，并处理 Python/Kotlin 边界 |
+| B（推荐） | [Operit](https://github.com/AAswordman/Operit) Android 应用 | Android 为第一运行端的全域助手 | 原生工具、Shower、OCR、文档转换、向量记忆、模型、工作流和后台服务最完整 | 必须拆分大单体、权限和 ROM 特判，并补跨设备协议 |
 
-最终选择方案 A。`ClawGUI` 承担全域控制面，`ClosePaw` 承担 Android 虚拟屏执行，`Operit` 作为 Android 文件/文档/OCR/工具子系统；`ClosePaw` 不作为根工程，因为它没有任务、模型、会话和跨设备控制面。
+最终选择方案 B。`Operit` 作为 Android 产品根工程，`ClawGUI` 提供全域控制面、远程渠道和跨设备协议参考，`ClosePaw` 承担虚拟屏执行内核；`ClosePaw` 不作为根工程，因为它没有完整的模型、工具、记忆和跨设备控制面。完整依据和持续更新见 [`decision-records/001-main-project-and-reference-modules.md`](decision-records/001-main-project-and-reference-modules.md)。
 
 ### 模块需求与来源
 
@@ -138,13 +138,13 @@ Episode -> SkillIR -> Candidate -> Validated -> Promoted -> SkillPackage
 
 ### 实施顺序
 
-1. 稳定 `ClawGUI` 控制面和 `DeviceBackend`。
-2. 接入 ClosePaw Android 执行内核。
+1. 固定 Operit 行为基线并拆分核心能力接口。
+2. 用 ClosePaw 生命周期强化 Android 执行内核，保留 Shower 服务边界。
 3. 接入 KnowAct 轨迹编译、状态契约和 `validate/promote`。
 4. 接入 ClawGUI-Skills 版本、失败修订和审计。
-5. 接入 X-OmniClaw 文件、相册、上下文和会话。
-6. 以独立适配器接入 Operit OCR、文档、向量和 Shower。
-7. 接入 Zafiro Runtime、MCP、Python 和远程电脑。
+5. 接入 X-OmniClaw、PocketSearch 和 Operit 的个人数字资产能力。
+6. 接入 PowerMem 记忆生命周期和 Zafiro Runtime。
+7. 接入 ClawGUI 远程渠道、电脑后端和模型路由。
 8. 最后接入 ClawGUI-RL/Eval 的离线训练评测闭环。
 
 ### Ruto-GLM：Android 多虚拟屏并行参考
