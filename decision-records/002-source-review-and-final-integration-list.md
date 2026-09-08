@@ -123,6 +123,15 @@
 | `Ghost-in-the-Droid/registry/*.yaml`、`registry/scripts/validate_skill.py` | Skill 元数据含版本、包名、导出动作/工作流、弹窗检测、默认参数和测试设备；校验器检查字段、YAML、Python 语法和危险调用 | 直接吸收 SkillPackage 字段和校验器；加入来源、权限、验证证据和版本兼容矩阵 |
 | `AppAgentX/data/State.py`、`explor_auto.py` | LangGraph State 同时保存截图、页面 JSON、动作、工具结果、错误和 fallback 标志；完成判定先让 LLM 生成标准，再对最近截图做字符串包含式 `yes/complete` 判断；`data/graph_db.py` 用 Neo4j 建 Page-Element-Action 图 | 只能学习状态图和“标准生成—判定”分层；不复制 LLM 字符串判定、Neo4j 生产依赖和全局配置 |
 | `AppAgentX/data/data_storage.py`、`vector_db.py`、`chain_evolve.py` | 轨迹落成 Page/Element/Action 图，元素图像用 ResNet50 向量写入远程向量库；链路模板化由 LLM 输出 Pydantic 结构并写 Neo4j | 只吸收元素—动作—页面关系和结构化输出；端侧改用统一 Asset/SkillStore，结果必须有设备证据 |
+| `closepaw/.../VirtualDisplayPlatform.kt`、`VdLifecycleArbiter.kt` | 用 `Stopped/Running/Draining/Broken` 状态和运行租约串行化启停；Binder 死亡进入 Broken；停止前排空操作、移除任务、释放 display 和 ImageReader | 直接照搬生命周期状态机；需把 API/ROM 能力探测放到 Adapter，不能把 Android 类型带入控制面 |
+| `closepaw/.../ShizukuDisplayTransport.kt`、`ShizukuInputTransport.kt` | API 33 分支反射 `VirtualDisplayConfig.Builder`，API 31-32 有两种旧签名和 packageName 重试；保存 `IVirtualDisplayCallback` token；输入反射 `injectInputEvent` 并检查布尔结果 | 直接照搬签名探测和回退框架；`VirtualDisplayConfig.Builder` 在低版本的隐藏/公开边界必须实测，不能仅按 SDK 常量判断 |
+| `closepaw/.../VirtualDisplayInputInjector.kt`、`ShizukuRuntimeGateway.kt` | 反射 `InputEvent.setDisplayId` 后读回验证；失败时执行 `input -d` shell；长按/滑动取消时发送 `ACTION_CANCEL`；通过 HiddenApiBypass 解锁隐藏 API | 直接吸收“探测—验证—回退—取消”链；隐藏 API 只能封装在设备适配器，保留审计和失败原因 |
+| `operit/.../VirtualDisplayManager.kt` | 以进程单例保存一个 `VirtualDisplay`、一个 `ImageReader` 和一个 displayId；创建时使用物理屏尺寸减状态栏；释放和截图有异常兜底 | 只能删减后使用；不能作为多虚拟屏底座，需移除单例、补生命周期租约和完整尺寸策略 |
+| `operit/.../MemoryRepository.kt`、`VectorIndexManager.kt` | ObjectBox 保存 Memory/DocumentChunk，文件名带 profile 和向量维度；关键词、标签、语义、关系边权重和 RRF 混合排序；Embedding 可调用云服务 | 直接吸收检索字段和维度迁移逻辑；存储和 UI 图模型必须拆到 `MemoryAdapter`，不能让 Asset、Memory、Skill 共用一张事实表 |
+| `operit/.../ToolPermissionSystem.kt`、`ToolRegistration.kt` | DataStore 保存全局/单工具 ALLOW、ASK、FORBID；ASK 通过 Overlay 等待用户；工具注册集中且同时处理 UI 可见性、代理调用和权限检查 | 吸收权限等级和人工确认合同；删除 UI 状态副作用，统一由控制面做策略和审计 |
+| `ClawGUI/clawgui-agent/phone_agent/integration/contracts.py` | 不可变 `TaskSession`、`Episode`、`EpisodeStep`、`VerificationResult` 和 `SkillPipeline`，明确 candidate/validated/promoted/deprecated | 直接作为总控制面的领域合同；Android/第三方实现只能实现 Adapter，不修改合同 |
+| `ClawGUI/clawgui-agent/phone_agent/device_factory.py` | ADB/HDC/iOS 通过延迟加载模块共享同一设备操作接口，但保留全局 factory | 吸收设备能力接口；重写为会话作用域 Provider，禁止全局设备类型污染并发任务 |
+| `ClawGUI/clawgui-skills/clawgui_skills/verifier.py`、`evolution.py` | Verifier 只读取脱敏轨迹和有限截图；无模型时按重复动作/定位错误给出反馈；修订通过受限文件工具、版本快照和失败案例写回 | 直接吸收验证信息边界、受限修订和版本快照；仍需接入真机结果和 ROM 证据 |
 
 ## 四、按模块需求确定底座和吸收清单
 

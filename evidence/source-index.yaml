@@ -39,3 +39,51 @@ sources:
     evidence_level: L1
     local_path: AutoRefer/AppAgentX
     reviewed_files: [explor_auto.py, data/State.py, data/graph_db.py, data/data_storage.py, chain_evolve.py]
+  - id: clawgui
+    url: https://github.com/ZJU-REAL/ClawGUI
+    role: control-plane
+    evidence_level: L1
+    local_path: AutoRefer/ClawGUI
+    reviewed_files: [clawgui-agent/phone_agent/integration/contracts.py, clawgui-agent/phone_agent/tracer.py, clawgui-agent/phone_agent/device_factory.py, clawgui-skills/clawgui_skills/verifier.py, clawgui-skills/clawgui_skills/evolution.py]
+  - id: closepaw
+    url: https://github.com/imoonkey/closepaw
+    role: virtual-display-runtime
+    evidence_level: L1
+    local_path: AutoRefer/closepaw
+    reviewed_files: [app/src/main/kotlin/ai/closepaw/platform/virtualdisplay/VirtualDisplayPlatform.kt, app/src/main/kotlin/ai/closepaw/platform/virtualdisplay/VdLifecycleArbiter.kt, app/src/main/kotlin/ai/closepaw/platform/virtualdisplay/ShizukuDisplayTransport.kt, app/src/main/kotlin/ai/closepaw/platform/virtualdisplay/VirtualDisplayInputInjector.kt]
+  - id: operit
+    url: https://github.com/Moole123/operit
+    role: android-capability-base
+    evidence_level: L1
+    local_path: AutoRefer/operit
+    reviewed_files: [app/src/main/java/com/ai/assistance/operit/core/tools/agent/VirtualDisplayManager.kt, app/src/main/java/com/ai/assistance/operit/data/repository/MemoryRepository.kt, app/src/main/java/com/ai/assistance/operit/util/vector/VectorIndexManager.kt, app/src/main/java/com/ai/assistance/operit/ui/permissions/ToolPermissionSystem.kt]
+  - id: x-omniclaw
+    url: https://github.com/OPPO-Mente-Lab/X-OmniClaw
+    role: android-memory-and-gateway
+    evidence_level: L1
+    local_path: AutoRefer/X-OmniClaw
+    reviewed_files: [app/src/main/java/com/shijing/xomniclaw/agent/context/MessageCompactor.kt, app/src/main/java/com/shijing/xomniclaw/gateway/GatewayServer.kt, app/src/main/java/com/shijing/xomniclaw/agent/skills/SkillInstaller.kt]
+  - id: powermem
+    url: https://github.com/oceanbase/powermem
+    role: memory-lifecycle
+    evidence_level: L1
+    local_path: AutoRefer/PowerMem
+    reviewed_files: [src/powercontext/artifacts/protocols.py, src/powercontext/builtin/artifacts/memory/service.py, src/powercontext/builtin/artifacts/handoff/service.py]
+  - id: eaglerag
+    url: https://github.com/zhiweio/EagleRAG
+    role: multimodal-retrieval-routing
+    evidence_level: L1
+    local_path: AutoRefer/EagleRAG
+    reviewed_files: [eagle_rag/ingest/router.py, eagle_rag/ingest/visual_encoder.py, eagle_rag/index/milvus_visual_store.py]
+  - id: semantic-finder
+    url: https://github.com/AI-For-Science/semantic-finder
+    role: file-index-and-hybrid-retrieval
+    evidence_level: L1
+    local_path: AutoRefer/semantic-finder-research2
+    reviewed_files: [ingest/parsers.py, ingest/chunker.py, retrieval/hybrid_search.py, retrieval/reranker.py, watcher/debounce.py]
+  - id: clip-as-service
+    url: https://github.com/jina-ai/clip-as-service
+    role: remote-embedding-provider
+    evidence_level: L1
+    local_path: AutoRefer/clip-as-service
+    reviewed_files: [server/clip_server/executors/clip_onnx.py, server/clip_server/model/clip_model.py, client/clip_client/client.py]
