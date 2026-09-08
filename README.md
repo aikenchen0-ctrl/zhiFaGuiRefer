@@ -147,6 +147,26 @@ Episode -> SkillIR -> Candidate -> Validated -> Promoted -> SkillPackage
 7. 接入 Zafiro Runtime、MCP、Python 和远程电脑。
 8. 最后接入 ClawGUI-RL/Eval 的离线训练评测闭环。
 
+### Ruto-GLM：Android 多虚拟屏并行参考
+
+[Ruto-GLM](https://github.com/iamr0s/Ruto-GLM) 已浅克隆到 `AutoRefer/Ruto-GLM`。它不改变根工程选择，但对 Android 执行层有较高参考价值：
+
+- 以会话绑定 `displayId`，为每个虚拟屏任务创建独立协程，适合多虚拟屏并行和单任务停止；
+- 同时提供 `DisplayManager` 虚拟屏、`SurfaceControl` 镜像显示、`ImageReader` 和 PixelCopy 截图路径；
+- 提供按 display 定向的点击、滑动、按键和文本输入；
+- 通过 API 版本分支调用 `injectInputEventToTarget` 或 `injectInputEvent`；
+- 提供低层动作运行时和 AutoGLM 指令解析，可作为 `SkillIR` 到 Android 原子动作的适配参考；
+- 使用 LangChain4j 接入 OpenAI 兼容模型和 Gemini，并支持流式响应。
+
+整合边界：
+
+1. 吸收 Ruto 的“会话 -> display -> 独立任务 Job”并发模型，补入 `TaskSession` 和 `DeviceSession`。
+2. 吸收 `SurfaceControl` 镜像作为 ClosePaw 的可选帧后端，不替换 ClosePaw 生命周期状态机。
+3. 吸收其输入事件构造、坐标换算和 API 33 分支；必须补 ROM 签名探测、注入结果返回和失败诊断。
+4. 吸收其低层动作注册思想，将 `click`、`swipe`、`text`、`launch`、`wait` 映射到统一 `Action`/`SkillStep`，不直接采用固定 marker 字符串作为正式技能格式。
+
+限制：Ruto 目前主要是 Android 执行和会话消息框架，没有完整的长期记忆、文件/图片语义索引、轨迹编译、Skill 晋升和跨设备控制面；其隐藏 API、任务迁移验证、资源释放和输入结果处理仍需纳入真机兼容测试。它应作为 `ClosePaw + Aries` 的执行层参考，不作为 `ClawGUI` 或 `Operit` 根工程替代品。
+
 ## 目录
 
 - `references/`：项目定位、源码索引和证据记录
