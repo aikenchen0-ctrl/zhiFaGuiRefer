@@ -171,6 +171,151 @@ ClawGUI 的全域控制面、远程渠道、模型适配和 GUI Agent 较强，�
 4. 新增资产扫描、轨迹编译和 Skill 晋升时，先写失败测试，再实现最小路径。
 5. 只有替代路径通过回归测试和 ROM/设备验证后，才删除旧实现。
 
+## 高内聚、低耦合架构约束
+
+### 模块边界
+
+每个模块只拥有一种主要变化原因，并且只拥有自己负责的数据写入权。第三方项目只能进入 `adapter` 或 `provider` 边界，不能直接修改核心领域对象。
+
+```text
+domain
+  Task / Session / Run / Step
+  Asset / Episode / SkillIR / Verification
+
+application
+  TaskOrchestrator / CapabilityRouter / Policy
+
+capability
+  device / asset / memory / skill / model / remote
+
+adapter
+  Operit / ClosePaw / Aries / X-OmniClaw / ClawGUI / PocketSearch
+
+infrastructure
+  database / vector store / file store / queue / network
+
+presentation
+  Android UI / Web UI / remote channel
+```
+
+### 允许的依赖方向
+
+```text
+presentation -> application -> domain
+capability -> domain
+adapter -> capability + domain
+infrastructure -> domain contracts
+```
+
+禁止反向依赖：
+
+- `domain` 不依赖 Android、Shizuku、数据库、网络、模型 SDK 或 UI；
+- `application` 不直接调用 `VirtualDisplay`、`MediaStore`、MNN、向量数据库或第三方 API；
+- `skill` 不直接读写设备文件和截图，必须通过 `AssetStore`；
+- `model` 不直接改变 Session、Skill 或 Asset 状态；
+- `ui` 不直接操作 Shower、数据库和文件系统；
+- 任一第三方适配器不允许引用另一第三方适配器的内部类。
+
+### 核心端口
+
+核心模块只依赖以下接口：
+
+```text
+TaskRepository
+SessionRepository
+AssetSource
+AssetParser
+EmbeddingProvider
+VectorIndex
+TextIndex
+DeviceBackend
+FrameSource
+InputTransport
+SkillCompiler
+SkillVerifier
+SkillStore
+ModelProvider
+RemoteAgentTransport
+```
+
+Operit、ClosePaw、Aries、X-OmniClaw、PocketSearch 和 ClawGUI 都通过这些端口接入。替换某个实现时，核心模块不应感知实现来自哪个项目。
+
+### 数据所有权
+
+| 数据 | 唯一所有者 | 其他模块访问方式 |
+|---|---|---|
+| 任务和会话状态 | `TaskRepository` / `SessionRepository` | 查询、事件和命令 |
+| 文件资产元数据 | `AssetRepository` | `AssetId` 查询 |
+| 原始文件和缩略图 | `AssetStore` | URI、流和受控导出 |
+| 文本/OCR/转写索引 | `TextIndex` | 查询接口 |
+| 图片/音频/视频向量 | `VectorIndex` | 向量查询接口 |
+| 设备显示和输入 | `DeviceBackend` | 会话作用域命令 |
+| Skill 版本和晋升状态 | `SkillStore` | SkillIR 和版本 API |
+| 模型配置和用量 | `ModelProvider` / `UsageRepository` | 推理请求和统计事件 |
+
+禁止多个模块直接写同一文件、表或索引。跨模块更新通过事务、命令或事件完成。
+
+### 事件与异步任务
+
+扫描、OCR、Embedding、视频抽帧、Skill 修订和远程执行均属于异步任务，统一使用：
+
+```text
+JobId
+TaskId
+SessionId
+source_version
+status
+progress
+retry_count
+error_code
+evidence_refs
+```
+
+任务必须可暂停、取消、恢复和重试；不能由 UI 协程直接持有长时间资源。后台任务完成后发布领域事件，查询方通过 Repository 获取最终状态。
+
+### 第三方适配器隔离
+
+| 适配器 | 只允许暴露 | 不得泄漏 |
+|---|---|---|
+| ClosePaw | `DeviceBackend`、`FrameSource`、`InputTransport` | 内部 Binder、隐藏 API 反射类 |
+| Aries | API 版本探测、GL 帧结果、任务迁移结果 | `VirtualDisplayConfig.Builder` 的无条件路径 |
+| X-OmniClaw | 相册记录、会话记录、记忆查询、Skill 文档 | 自己的全局 Prompt 和工具注册表 |
+| PocketSearch | 图片向量、索引进度、Top-K 结果 | Flutter、Dart 和 Zvec 内部对象 |
+| ClawGUI | Provider、Episode、远程设备和 Skill 编译服务 | nanobot 内部 Session 和渠道状态 |
+| Operit Shower | 截图、视频、输入和显示会话 | 业务工具和 UI 状态 |
+| EagleRAG | 文档解析、视觉块、引用和检索结果 | Milvus、Redis、MinIO 内部连接 |
+
+### 组合根和依赖注入
+
+只允许在应用启动组合根创建具体实现：
+
+```text
+OperitApplication
+  -> repositories
+  -> infrastructure
+  -> adapters
+  -> capability services
+  -> application orchestrator
+  -> UI / remote endpoints
+```
+
+业务类通过构造函数接收接口，不使用跨模块静态单例。需要全局生命周期的对象由应用容器管理，并明确关闭顺序。
+
+### 高内聚低耦合验收
+
+每次引入参考模块前必须回答：
+
+1. 该代码只解决一个领域问题吗？
+2. 它的输入输出能否用稳定接口描述？
+3. 是否把第三方类型泄漏到核心模块？
+4. 是否拥有清晰的数据写入边界？
+5. 是否能单独替换、模拟和测试？
+6. 失败是否通过类型化错误返回？
+7. 是否能在没有 Android UI 和真实设备时测试核心逻辑？
+8. 删除该适配器是否只影响一个能力包？
+
+若第 3、4、8 项任一答案为“否”，先拆适配器和数据边界，再进行功能吸收。
+
 ## 直接实施顺序
 
 ```text
