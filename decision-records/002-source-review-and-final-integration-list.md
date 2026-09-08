@@ -107,7 +107,24 @@
 | `Zafiro` | Xposed 宿主、厂商语音接管、产品 UI | 工具注册、MCP、Python、Skill Runtime |
 | `ClawGUI` | RL、评测和非目标渠道的生产依赖 | Agent、Provider、Session、Episode、远程协议 |
 
-## 三、按模块需求确定底座和吸收清单
+## 三、源码核查新增证据
+
+本节只记录本轮读取到的实际实现，结论优先于项目 README 的功能宣称。
+
+| 项目与实际源码 | 源码事实 | 迁移判定 |
+|---|---|---|
+| `MobiAgent/agent_rr/action_cache/tree.py`、`action.py` | `ActionTree` 支持 exact/fuzzy 两种任务匹配；节点按动作合并任务，`try_find_shortcuts` 从共享路径生成 2~3 步 Shortcut；`target_elem_changed` 用裁剪图像 SSIM 或 OmniParser 判断目标是否变化；Qwen3 Embedder/Reranker 参与召回 | 只吸收动作树、缓存候选和目标变化检测；不直接复制 Python/Torch 状态，候选必须进入统一验证和晋升流程 |
+| `MobileAgent/Mobile-Agent-E/MobileAgentE/agents.py`、`inference_agent_E.py` | `InfoPool` 把计划、感知、动作历史、结果、错误、子目标和未来任务集中在内存；Manager、Operator、ActionReflector、Tips/Shortcut Reflector 和 Retriever 由提示词串联；Shortcut 仅写入内存字典，执行依赖 ADB 和固定等待时间 | 只吸收“计划—执行—反思—Tips/Shortcut”闭环；重写为 `TaskSession` 和持久化 Skill 候选，不把提示词产物当作已验证技能 |
+| `DroidAgent/droidagent/app_state.py`、`memories/working_memory.py`、`memories/task_memory.py` | 以静态 `AppState` 保存活动、GUI 状态、临时 Toast；WorkingMemory 区分 ACTION/OBSERVATION/CRITIQUE；TaskMemory 将任务评估、反思和可复现动作写入存储 | 吸收工作记忆分层和动作前后证据；删除全局静态状态，改为会话作用域并接入 `Episode` |
+| `DroidAgent/scripts/make_script.py` | 将实验 `task_execution_history` 转为 UIAutomator2 Python 脚本；定位优先 text/content-desc/resource-id，最后退回坐标；脚本写入固定包名和原始屏幕宽高，并提供 activity 等待 | 删减实验数据、固定屏幕尺寸和坐标回退后使用；补前置/后置验证、密文参数和尺寸归一化 |
+| `Ghost-in-the-Droid/gitd/skills/trace_to_steps.py` | 通过 actuating-tool allow-list 从聊天工具轨迹蒸馏可回放步骤；按 `tool_id` 或顺序匹配结果；读屏和元工具会被丢弃；明确把参数化和剪枝留给后续 review/commit | 直接照搬“allow-list + 轨迹蒸馏”边界；后续必须接入参数提取、冗余删除、设备验证和结果验证 |
+| `Ghost-in-the-Droid/gitd/skills/base.py` | `Element` 按 content-desc/text/resource-id/class/坐标降级查找；`Action.run` 执行 precondition、execute、postcondition、rollback 和重试；`Workflow` 负责唤醒、返回主页、启动应用和弹窗清理 | 直接照搬执行合同和定位链，改为 `DeviceBackend`；坐标只能作为最后降级路径 |
+| `Ghost-in-the-Droid/gitd/skills/checkpoint.py`、`auto_creator.py` | checkpoint 支持人工 resume/abort、屏幕条件自动恢复、超时和可注入轮询；BFS 探索保存 XML 结构 hash、截图、元素和转移，并限制深度/状态数 | 直接吸收 checkpoint 和 BFS 状态图；接入统一取消、权限和 ROM 能力探测 |
+| `Ghost-in-the-Droid/registry/*.yaml`、`registry/scripts/validate_skill.py` | Skill 元数据含版本、包名、导出动作/工作流、弹窗检测、默认参数和测试设备；校验器检查字段、YAML、Python 语法和危险调用 | 直接吸收 SkillPackage 字段和校验器；加入来源、权限、验证证据和版本兼容矩阵 |
+| `AppAgentX/data/State.py`、`explor_auto.py` | LangGraph State 同时保存截图、页面 JSON、动作、工具结果、错误和 fallback 标志；完成判定先让 LLM 生成标准，再对最近截图做字符串包含式 `yes/complete` 判断；`data/graph_db.py` 用 Neo4j 建 Page-Element-Action 图 | 只能学习状态图和“标准生成—判定”分层；不复制 LLM 字符串判定、Neo4j 生产依赖和全局配置 |
+| `AppAgentX/data/data_storage.py`、`vector_db.py`、`chain_evolve.py` | 轨迹落成 Page/Element/Action 图，元素图像用 ResNet50 向量写入远程向量库；链路模板化由 LLM 输出 Pydantic 结构并写 Neo4j | 只吸收元素—动作—页面关系和结构化输出；端侧改用统一 Asset/SkillStore，结果必须有设备证据 |
+
+## 四、按模块需求确定底座和吸收清单
 
 | 模块需求 | 直接照搬底座 | 吸收模块 | 优势 | 主要代价和验收点 |
 |---|---|---|---|---|
@@ -122,7 +139,7 @@
 | 远程电脑 Agent | ClawGUI Gateway/Channel | KnowAct Windows backend、Zafiro MCP、Operit Shell | 手机和电脑共用能力路由 | 心跳、重连、取消、授权撤回 |
 | 训练与评测 | ClawGUI-RL/Eval | KnowAct 验证日志、ROM 兼容矩阵 | 生产与实验分离 | 不把训练依赖打入 Android 包 |
 
-## 四、高内聚、低耦合约束
+## 五、高内聚、低耦合约束
 
 依赖方向固定为：
 
@@ -144,7 +161,7 @@ ControlPlane -> Contracts -> CapabilityRouter
 
 替换 `ClosePaw`、`Operit`、`Aries`、`Ruto` 或 `X-OmniClaw` 时，控制面、`SkillIR` 和资产合同不应修改。
 
-## 五、当前准备状态和后续顺序
+## 六、当前准备状态和后续顺序
 
 已完成：
 

@@ -12,20 +12,30 @@ sources:
   - id: mobiagent
     url: https://github.com/IPADS-SAI/MobiAgent
     role: action-memory
-    evidence_level: L2
+    evidence_level: L1
+    local_path: AutoRefer/MobiAgent
+    reviewed_files: [agent_rr/action_cache/tree.py, agent_rr/action_cache/action.py, agent_rr/action_cache/reranker.py]
   - id: mobile-agent-e
     url: https://github.com/X-PLUG/MobileAgent/tree/main/Mobile-Agent-E
     role: skill-generation
-    evidence_level: L2
+    evidence_level: L1
+    local_path: AutoRefer/MobileAgent/Mobile-Agent-E
+    reviewed_files: [inference_agent_E.py, MobileAgentE/agents.py, MobileAgentE/controller.py]
   - id: droidagent
     url: https://github.com/coinse/droidagent
     role: offline-exploration
-    evidence_level: L2
+    evidence_level: L1
+    local_path: AutoRefer/DroidAgent
+    reviewed_files: [droidagent/app_state.py, droidagent/memories/working_memory.py, droidagent/memories/task_memory.py, scripts/make_script.py]
   - id: ghost-in-the-droid
     url: https://github.com/ghost-in-the-droid/android-agent
     role: skill-packaging
-    evidence_level: L2
+    evidence_level: L1
+    local_path: AutoRefer/Ghost-in-the-Droid
+    reviewed_files: [gitd/skills/trace_to_steps.py, gitd/skills/base.py, gitd/skills/checkpoint.py, gitd/skills/auto_creator.py, registry/scripts/validate_skill.py]
   - id: appagentx
     url: https://github.com/Westlake-AGI-Lab/AppAgentX
     role: conceptual-reference
-    evidence_level: L2
+    evidence_level: L1
+    local_path: AutoRefer/AppAgentX
+    reviewed_files: [explor_auto.py, data/State.py, data/graph_db.py, data/data_storage.py, chain_evolve.py]
