@@ -69,6 +69,123 @@ Operit Android 根工程
 | 远程电脑 | GUIClaw `DeviceBackend` 和 Windows backend | ClawGUI Gateway/Channel；Operit HTTP bridge | 新增能力协商、心跳、断线恢复、取消和授权范围 |
 | 训练评测 | ClawGUI-Eval/RL 独立部署 | KnowAct 设备验证日志、ROM 矩阵 | 不进入手机生产运行时 |
 
+## 五类实施清单
+
+### 1. 可以直接照搬，再做接口适配
+
+这些模块边界清晰、依赖相对局部，适合作为第一批实现起点。直接照搬不等于不测试，复制后必须替换包名、错误类型、存储路径和权限入口。
+
+| 模块需求 | 直接照搬来源 | 需要改动 | 优势 | 风险 |
+|---|---|---|---|---|
+| Android 相册增量扫描 | X-OmniClaw `AlbumScanner`、`AlbumImageRecord` | 改为 Operit AssetRecord；接入 MediaStore 权限和任务队列 | 已处理时间戳+媒体 ID 游标 | 只覆盖 MediaStore，不覆盖其他应用私有目录 |
+| 图片视觉摘要与隐私过滤 | X-OmniClaw `ImageMemorySummarizer`、`ImageMemoryPrivacyFilter` | 将摘要写入统一资产表，不再只写 Markdown | 已有图片压缩、VLM 调用和敏感字段过滤 | 摘要不是原图向量，不能替代图像检索 |
+| 文档 OCR 与格式转换 | Operit `OCRUtils`、`DocumentConversionUtil` | 拆出独立 `AssetParser` 接口，限制大文件和超时 | PDF、Office、图片已有实现 | 当前与 Operit 工具和 UI 依赖较深 |
+| Android 向量检索入口 | Operit `MemoryRepository`、`VectorIndexManager` | 从“记忆”改为通用资产索引，增加资产类型和来源字段 | 已有 HNSW、语义搜索和调试查询 | 需处理向量维度变化和索引重建 |
+| 技能包安全安装 | X-OmniClaw `SkillInstaller`、`SkillLockManager` | 接入正式 SkillPackage 和签名/来源字段 | 已有 ZIP 路径校验、版本和哈希记录 | 不能直接信任外部 Skill |
+| GUI 设备接口 | KnowAct `DeviceBackend`、动作和观察数据类 | 改为 Kotlin/IPC 可序列化协议 | 设备后端职责已经清晰 | Python 协议不能直接被 Android 调用 |
+
+### 2. 可以用另一种语言重写后符合需求
+
+这些模块的算法或数据结构有价值，但原实现语言、运行时或依赖不适合 Operit Android 根工程。
+
+| 模块需求 | 原实现 | 重写方案 | 保留内容 | 取舍 |
+|---|---|---|---|---|
+| 轨迹转 SkillIR | KnowAct Python `trajectory_codegen.py`、`data.py` | Kotlin 实现核心规范化；复杂编译保留 Python 服务 | 动作参数、状态契约、截图和去重规则 | Kotlin 端易部署；Python 端迭代更快 |
+| 轨迹去冗余 | KnowAct Python `flat.py`、`_merger.py` | Kotlin 实现候选删除、动作合并和回放接口 | 语义相似度、序列相似度和状态约束 | 删除动作必须真实回放，不能只按字符串相似度 |
+| 端侧图片检索 | PocketSearch Dart `clip_service`、`index_service`、`vector_store` | Kotlin + MNN/ONNX + Zvec/ObjectBox | MobileCLIP 编码、HNSW、标量过滤、进度和 Agent API | 跨语言后需重新验证模型输入、ABI 和内存 |
+| ClawGUI 设备后端 | ClawGUI Python `DeviceBackend`、Windows/ADB/HDC | Kotlin 端实现 Android Provider；电脑端保留 Python/独立服务 | observe、execute、preflight、取消和错误合同 | 统一协议降低跨设备耦合，但增加 IPC |
+| ClawGUI Skill Runtime | ClawGUI-Skills Python | Kotlin 端运行 SkillPackage；Python 保留生成和复杂修订服务 | metadata 检索、版本、失败案例、审计 | 端侧轻量，服务端保留模型驱动修订 |
+| 全文件监听与索引 | Semantic Finder Python watcher/ingest | Kotlin WorkManager + ContentObserver + SAF；桌面端保留原实现 | 文件监听、双向量、ANN+BM25+RRF | 移动端事件不完整，必须有周期校正扫描 |
+| 多模态文档服务 | EagleRAG Python | Operit 端采用轻量解析器；云端用 EagleRAG | 文本/视觉分路、证据回链和 MCP | 手机不运行 Milvus、Redis、MinIO 全套基础设施 |
+
+### 3. 只能学习思路，不能直接作为实现底座
+
+这些项目的核心价值是架构或模型思想，直接搬入会把不匹配的基础设施、训练假设或运行时一起带进来。
+
+| 项目 | 学习内容 | 不直接照搬的原因 |
+|---|---|---|
+| EagleRAG | 文本/视觉双管线、RRF、图扩展、引用溯源、MCP | 服务端微服务和基础设施过重 |
+| RAG-Anything | 文本、图片、表格、公式的统一文档关系 | 解析链和运行环境偏服务器 |
+| ColPali | 页面级视觉多向量和 OCR-free 文档检索 | 多向量存储和模型推理成本高 |
+| PixelRAG | 视觉切片、页面渲染和视觉证据 | 更适合复杂文档服务，不是手机相册索引 |
+| PowerMem | 记忆提取、融合、时间衰减、Experience/Skill 双层 | 记忆策略需与 Operit Session/Memory 模型重合并 |
+| WeMM-Embedding | 文本、图片、视频和视觉文档统一向量空间 | 先验证模型服务和向量维度，再决定是否生产使用 |
+| Qwen3-VL-Embedding | 高精度跨模态 Embedding 和 Reranker 配合 | 端侧模型体量和推理成本高 |
+
+### 4. 只吸收一两点特性
+
+| 来源 | 只吸收的特性 | 不吸收的部分 |
+|---|---|---|
+| Aries-AI | 输入签名探测、任务启动后 display 校验/迁移 | 不复制其 API 34 反射路径和整套显示引擎 |
+| Ruto-GLM | `session -> displayId -> Job` 的并发绑定 | 不复制其消息框架和固定指令格式 |
+| Ente | 图片预处理、增量索引、设备状态调度 | 不复制照片同步、账号和整套 UI |
+| Immich | Asset 元数据、OCR/CLIP 分工、时间/地点/人脸过滤 | 不复制服务端 PostgreSQL/VectorChord 部署 |
+| Zafiro | 工具按需加载、MCP/Skill/Python 扩展 | 不复制其厂商语音助手接管和整套 Agent Runtime |
+| Operit Shower | 独立 AIDL 特权服务、截图/输入服务边界 | 不把 Shower 与所有业务工具继续耦合 |
+| Jina CLIP 服务 | 图片/文本统一编码 API 和批处理 | 不将云端服务协议当作手机本地存储协议 |
+| ObjectBox | Android HNSW 和对象/向量同库 | 不在未完成数据迁移评估前替换现有存储 |
+
+### 5. 删减后可以使用
+
+以下不是删除功能，而是先隔离非核心路径，待依赖扫描和回归测试通过后再移出默认构建。
+
+| 来源 | 可删减内容 | 保留内容 | 预期收益 |
+|---|---|---|---|
+| Operit | `dragonbones`、`fbx`、`mmd` 等非 Agent 核心展示模块 | `terminal`、`mnn`、`llama`、`quickjs`、`showerclient` | 减少 APK 体积、构建时间和初始化负担 |
+| Operit | 市场展示、示例工具、重复 UI 适配 | 模型配置、工具注册、会话、工作流 | 降低产品逻辑和工具注册耦合 |
+| Operit | 默认捆绑的高权限能力 | 按能力启用 Root、Shizuku、无障碍、文件和虚拟屏 | 缩小权限面，便于 ROM 诊断 |
+| Operit | 重复的旧记忆格式和单用途索引入口 | 通用 AssetRecord、统一 Memory/Skill API | 避免多套数据格式并存 |
+| X-OmniClaw | 只写行为 Markdown 的旧路径 | 事件采集和 SkillIR 转换 | 防止“记录”直接绕过验证晋升 |
+| ClawGUI | RL 训练运行时和评测 UI 的生产依赖 | Agent、Provider、Episode、远程渠道 | 减少手机端资源和部署复杂度 |
+| EagleRAG | Milvus/Redis/MinIO 的手机端依赖 | 文本/视觉分路、引用字段、MCP 合同 | 保留方法，不引入重型基础设施 |
+
+## 根工程优劣势
+
+### 选择 Operit 的优势
+
+1. Android 原生宿主已经存在，权限、前台服务、模型、工具和 UI 不需要重新搭建。
+2. 已有文件、OCR、Office/PDF、向量记忆、Shower、工作流和定时任务，和目标需求重合度最高。
+3. `minSdk=26`，可以覆盖更多 Android 设备，再通过能力探测决定功能是否启用。
+4. Kotlin 原生整合 X-OmniClaw、ClosePaw、PocketSearch 的 Android 逻辑，少一层跨运行时通信。
+
+### 选择 Operit 的代价
+
+1. 工程规模大，工具注册、权限和业务 UI 耦合，第一阶段必须先拆边界。
+2. 已有 ROM 问题记录较多，虚拟屏、无障碍、文件和截图能力必须建立逐 ROM 证据。
+3. 现有向量记忆主要围绕 Memory 对象，改成全域 Asset Index 会涉及数据迁移。
+4. GUI Agent、轨迹编译和 Skill 晋升不是完整闭环，需要接入 KnowAct 和 ClawGUI。
+
+### 为什么不选 ClawGUI 为根工程
+
+ClawGUI 的全域控制面、远程渠道、模型适配和 GUI Agent 较强，但 Android 原生文件权限、文档解析、后台服务、Shower 和本地工具要重新接入。它应作为 Operit 的控制面、远程渠道、模型和评测参考，而不是产品宿主。
+
+## 开始改造前的基线
+
+本地工作分支：`AutoRefer/operit` -> `zhifagui-integration`。
+
+第一轮只建立接口和观测基线，不删除生产代码：
+
+1. 为当前 Operit 的聊天、工具、工作流、文件、记忆、Shower 和虚拟屏建立行为清单。
+2. 定义 `TaskSession`、`AssetRecord`、`Episode`、`SkillIR`、`VerificationResult` 和统一错误类型。
+3. 用适配器包裹旧模块，保持现有调用入口不变。
+4. 新增资产扫描、轨迹编译和 Skill 晋升时，先写失败测试，再实现最小路径。
+5. 只有替代路径通过回归测试和 ROM/设备验证后，才删除旧实现。
+
+## 直接实施顺序
+
+```text
+Operit 行为基线
+  -> TaskSession / AssetRecord / Episode / SkillIR 合同
+  -> ClosePaw 虚拟屏适配
+  -> X-OmniClaw 相册和会话适配
+  -> PocketSearch 图片向量适配
+  -> Operit OCR/文档解析拆包
+  -> KnowAct 编译、验证和 promote
+  -> ClawGUI-Skills / PowerMem 生命周期
+  -> ClawGUI 远程电脑和云端模型
+  -> 删除被替代的旧路径
+```
+
 ## 个人数字资产模块
 
 正式名称：全域数字资产多模态理解、语义检索与任务执行。
