@@ -83,6 +83,70 @@ Android 非接口化 GUI Agent 技术参考仓库。
 
 推荐顺序：先稳定 `ClosePaw + API 适配`，再接入 Aries 帧管线；随后接入 Zafiro Runtime 和 Operit 独立服务；最后建设远程电脑、长期记忆、云端模型路由和跨设备协同。这样牺牲部分早期功能数量，换取执行链可验证、失败可诊断、ROM 适配可扩展。
 
+## 根工程选择与模块整合清单
+
+### 两种根工程
+
+| 方案 | 根工程 | 适用目标 | 优势 | 代价 |
+|---|---|---|---|---|
+| A（推荐） | [ClawGUI](https://github.com/ZJU-REAL/ClawGUI) 的 `clawgui-agent` | 全域助手：手机、电脑、浏览器、云端和多渠道 | 已有任务循环、会话、记忆、Episode、模型 API、远程渠道和多设备后端 | 需要接入 Android 原生服务，并处理 Python/Kotlin 边界 |
+| B | [Operit](https://github.com/AAswordman/Operit) Android 应用 | Android-first：本地工具、文件、文档和自动化 | 原生工具、Shower、OCR、文档转换、向量记忆和工作流最完整 | 工程单体大、权限和 ROM 特判耦合；跨电脑和多渠道需重建 |
+
+最终选择方案 A。`ClawGUI` 承担全域控制面，`ClosePaw` 承担 Android 虚拟屏执行，`Operit` 作为 Android 文件/文档/OCR/工具子系统；`ClosePaw` 不作为根工程，因为它没有任务、模型、会话和跨设备控制面。
+
+### 模块需求与来源
+
+“照搬来改”表示复制指定模块作为实现起点，再改成统一接口；“吸收”表示迁移算法、接口或数据格式，不复制整个项目。
+
+| 模块需求 | 照搬来改 | 吸收模块 | 优势 | 代价与边界 |
+|---|---|---|---|---|
+| 全域任务、会话、远程渠道 | `ClawGUI/clawgui-agent/nanobot` 的 agent、session、channel、provider | X-OmniClaw 多会话停止；Operit 工作流 | 控制面和 API 已有基础 | 需统一跨设备任务协议 |
+| 设备能力抽象 | `KnowAct/GUIClaw/guiclaw/interfaces.py` 的 `DeviceBackend` | ClawGUI 的 Android/HDC/iOS；ClosePaw Android | 后端可插拔 | 需统一观察、动作、取消和错误 |
+| GUI Agent 循环 | `ClawGUI/clawgui-agent/phone_agent/agent.py` | X-OmniClaw 观察-推理-执行-验收；Zafiro 工具路由 | 模型适配和 Episode 完整 | 与 ADB、提示词耦合较深 |
+| Android 虚拟屏 | ClosePaw `VirtualDisplayPlatform`、Shizuku Transport | Aries OpenGL、输入签名、IME、任务迁移；Operit Shower 捕获 | 生命周期和清理可靠 | API 30-33、厂商 ROM 需单独适配 |
+| 手机文件和相册索引 | X-OmniClaw `AlbumScanner`、`GalleryMemoryWorkflow`、`MemoryIndex` | Operit 文档解析、OCR、HNSW | 已有增量扫描和混合检索 | 当前图片主要先转视觉摘要和文本向量，原图向量需后续增加 |
+| 文档、图片和 OCR | Operit `DocumentConversionUtil`、`OCRUtils` | X-OmniClaw 图片隐私过滤和 VLM 摘要 | PDF、DOCX、表格和 OCR 覆盖广 | 权限、耗时和大文件资源需限制 |
+| Episode 轨迹 | ClawGUI `tracer.py` | X-OmniClaw 无障碍事件；KnowAct 状态契约 | 支持回放、训练和证据追踪 | 图片、文本和账号信息必须脱敏 |
+| 轨迹编译 | KnowAct `trajectory_codegen.py`、`data.py`、`flat.py`、`state_contract.py` | DroidAgent 探索；X-OmniClaw 行为记录；Ghost 工作流格式 | 参数化、状态前置和动作固定化 | 去冗余必须删除动作后重新回放验证 |
+| 快捷动作晋升 | KnowAct `shortcut_validation.py`、`deeplink.py` | X-OmniClaw Intent/deeplink 行为克隆 | `candidate -> validated -> promoted` 边界清晰 | 需真机和视觉双重验证 |
+| Skill 生成和失败修订 | ClawGUI-Skills `schema.py`、`package.py`、`verifier.py`、`evolution.py` | KnowAct 状态契约；X-OmniClaw `SkillLockManager` | 有失败案例、版本快照和审计 | 要统一 SkillIR 与端侧安装格式 |
+| 记忆和检索 | X-OmniClaw `MemoryIndex.kt`；ClawGUI `memory_store.py` | MobiAgent 动作树和路径缓存 | 支持全文、向量和历史路径 | 不能让缓存绕过验证 |
+| Agent Runtime | Zafiro `ToolRegistry`、MCP、Python、Skill | Operit 工具注册和工作流；X-OmniClaw 工具路由 | 扩展能力强 | 权限必须由 ClawGUI 控制面统一治理 |
+| 远程电脑 | KnowAct GUIClaw Windows/desktop backend | ClawGUI Gateway/Channel；Operit Shell/文件 | 与手机共用设备抽象 | 需心跳、重连、取消和授权 |
+| 端侧与云端模型 | ClawGUI Provider、ModelClient、模型适配器 | X-OmniClaw VLM/STT 分离；ClawGUI-Eval OpenAI 兼容后端 | 支持本地、远程和云端路由 | 需处理费用、隐私、超时和模型格式差异 |
+| 训练与评测 | ClawGUI-RL、ClawGUI-Eval 独立运行 | KnowAct 验证日志；DroidAgent/MobiAgent 轨迹 | 形成数据和指标闭环 | 不进入手机生产运行时 |
+
+### 文件和图片语义检索
+
+该能力统一称为“手机个人数据多模态索引与语义检索”：
+
+```text
+授权 -> 文件/相册扫描 -> 文本解析/OCR -> 图片视觉摘要 -> 文本/图像向量 -> 混合检索 -> 文件证据 -> 继续执行
+```
+
+第一阶段采用“文件内容、OCR、图片摘要、文件名和时间的文本混合检索”；第二阶段再增加 CLIP/SigLIP 类图像向量，支持以图搜图和相似图片搜索。检索结果必须返回原始 URI、缩略图、命中原因、时间、来源和可执行动作，不能只返回模型生成的文件名。
+
+### 统一数据和状态
+
+`KnowAct Skill/SkillStep` 作为编译中间表示，`ClawGUI-Skills SkillPackage` 作为正式技能存储，`X-OmniClaw SKILL.md` 作为端侧安装格式。三者必须通过显式转换器连接：
+
+```text
+Episode -> SkillIR -> Candidate -> Validated -> Promoted -> SkillPackage
+```
+
+正式状态只允许：`raw`、`candidate`、`validated`、`promoted`、`deprecated`。未经设备验证、结果验证和重复回放的轨迹，不得晋升为正式 Skill。
+
+### 实施顺序
+
+1. 稳定 `ClawGUI` 控制面和 `DeviceBackend`。
+2. 接入 ClosePaw Android 执行内核。
+3. 接入 KnowAct 轨迹编译、状态契约和 `validate/promote`。
+4. 接入 ClawGUI-Skills 版本、失败修订和审计。
+5. 接入 X-OmniClaw 文件、相册、上下文和会话。
+6. 以独立适配器接入 Operit OCR、文档、向量和 Shower。
+7. 接入 Zafiro Runtime、MCP、Python 和远程电脑。
+8. 最后接入 ClawGUI-RL/Eval 的离线训练评测闭环。
+
 ## 目录
 
 - `references/`：项目定位、源码索引和证据记录
