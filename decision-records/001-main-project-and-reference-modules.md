@@ -371,6 +371,146 @@ OperitApplication
 5. `KnowAct` 和 `ClawGUI-Skills` 共同构成轨迹编译、验证、晋升和技能演化链。
 6. `EagleRAG`、`ColPali`、`PixelRAG`、`PowerMem` 和 Qwen/WeMM 模型应通过端口吸收，不应把其服务端基础设施直接嵌入 Android。
 
+## Operit 根工程目标拆分
+
+Operit 当前只有少量 Gradle 子模块，大部分能力仍集中在 `app`。第一轮不立即重命名或移动大量文件，而是先在 `app` 内建立以下包边界，再按依赖稳定程度逐步提取为 Gradle module。
+
+```text
+app/src/main/java/com/ai/assistance/operit/
+├── domain/
+│   ├── task/          TaskSession、Run、Step、TaskEvent
+│   ├── asset/         AssetRecord、AssetQuery、AssetEvidence
+│   ├── memory/        MemoryRecord、MemoryScope
+│   ├── skill/         SkillIR、SkillPackage、PromotionState
+│   └── result/        TypedError、OperationResult、Progress
+├── application/
+│   ├── task/          TaskOrchestrator、TaskPlanner、TaskVerifier
+│   ├── routing/       CapabilityRouter、ModelRouter
+│   └── policy/        PermissionPolicy、RiskPolicy、AuditService
+├── capability/
+│   ├── device/        DeviceBackend、VirtualDisplay、Input、Frame
+│   ├── asset/         AssetSource、Parser、OCR、ASR、Indexer、Search
+│   ├── memory/        MemoryStore、MemoryRetriever、MemoryEvolution
+│   ├── skill/         SkillCompiler、SkillVerifier、SkillStore
+│   ├── model/         ModelProvider、EmbeddingProvider、Reranker
+│   └── remote/        RemoteAgentTransport、Gateway、Channel
+├── adapter/
+│   ├── operit/        现有工具、工作流、记忆和 Shower 包装
+│   ├── closepaw/      VirtualDisplayPlatform 和 Shizuku 实现
+│   ├── aries/         GL、输入签名、IME、任务迁移实现
+│   ├── pocketsearch/  MNN、MobileCLIP、Zvec 适配
+│   ├── xomniclaw/     MediaStore、相册、会话和行为记录适配
+│   └── clawgui/       Python 服务、远程设备和模型适配
+├── infrastructure/
+│   ├── database/      ObjectBox、SQLite、文件数据库
+│   ├── vector/        HNSW、Zvec、SQLite-vec、远程向量库
+│   ├── jobs/          WorkManager、队列和断点状态
+│   └── storage/       URI、缩略图、原始文件和证据文件
+└── presentation/
+    ├── chat/          聊天和任务界面
+    ├── assets/        资产检索和预览界面
+    ├── skills/        Skill 管理和验证界面
+    └── diagnostics/   设备、权限、模型和任务诊断
+```
+
+## 模块需求最终清单
+
+| 编号 | 模块需求 | 核心职责 | 根工程底座 | 外部吸收 | 最终形态 |
+|---|---|---|---|---|---|
+| M01 | 任务和会话 | 目标、计划、运行批次、步骤、暂停、恢复、取消 | Operit ChatRuntime | ClawGUI Session、X-OmniClaw 隔离会话 | `TaskOrchestrator` + `SessionRepository` |
+| M02 | 模型接入 | 端侧模型、云端 API、VLM、Embedding、Reranker | Operit LLM Provider | ClawGUI Model Adapter、Jina/Qwen/WeMM | `ModelProvider` 端口 |
+| M03 | 工具运行时 | 工具发现、调用、MCP、Shell、Python、权限 | Operit Tool Registration | Zafiro Registry、ClawGUI nanobot tools | capability package 注册器 |
+| M04 | Android GUI 执行 | 无障碍、原子动作、截图、结果验证 | Operit 现有工具 | X-OmniClaw DeviceController、ClawGUI DeviceBackend | `DeviceBackend` |
+| M05 | 虚拟屏执行 | 创建、输入、帧、焦点、任务迁移、清理 | ClosePaw VirtualDisplayPlatform | Aries、Ruto、Operit Shower | `VirtualDisplayBackend` |
+| M06 | 个人资产发现 | MediaStore、SAF、目录、远程源、增量扫描 | Operit 文件能力 | X-OmniClaw AlbumScanner、Semantic Finder watcher | `AssetSource` |
+| M07 | 内容解析 | PDF、Office、文本、代码、压缩包、网页、数据库 | Operit DocumentConversionUtil | Knowhere、RAG-Anything、DeepStudent VFS | 插件化 `AssetParser` |
+| M08 | OCR/ASR/视觉理解 | 图片文字、音频转写、视频抽帧、视觉摘要 | Operit OCRUtils | X-OmniClaw 图片摘要、PixelRAG | `ContentExtractor` |
+| M09 | 多模态向量 | 图片、文本、音频、视频、页面向量 | PocketSearch 图片向量 | Jina CLIP、Qwen3-VL、WeMM、omni-retrieval | `EmbeddingProvider` |
+| M10 | 本地索引 | 元数据、FTS、HNSW、向量、哈希、证据 | Operit MemoryRepository 拆分后保留 | PocketSearch Zvec、ObjectBox、SQLite-vec | `AssetIndex` |
+| M11 | 混合检索 | 关键词、全文、元数据、向量、RRF、精排 | Operit 搜索逻辑拆分 | EagleRAG、Semantic Finder、Qdrant | `RetrievalPipeline` |
+| M12 | 资产后续操作 | 打开、复制、移动、编辑、发送、分享、归档、转换 | Operit File/Tool | ClawGUI 工具合同、Zafiro Skill | `AssetActionService` |
+| M13 | Episode 记录 | 截图、动作、观察、工具结果、模型输出、证据 | Operit 日志/ClawGUI tracer | KnowAct 轨迹字段、X-OmniClaw 无障碍事件 | `EpisodeStore` |
+| M14 | 轨迹编译 | 去重、参数化、状态契约、脚本和 SkillIR | KnowAct codegen | DroidAgent、MobiAgent、PocketSearch 行为记录 | `SkillCompiler` |
+| M15 | 技能验证晋升 | 设备验证、结果验证、视觉验证、重复回放 | KnowAct validate/promote | ClawGUI verifier、X-OmniClaw Success Monitor | `SkillPromotionGate` |
+| M16 | 技能演化 | 失败诊断、局部修订、版本、审计、回滚 | ClawGUI-Skills | PowerMem Experience/Skill | `SkillLifecycle` |
+| M17 | 长期记忆 | 事实、偏好、任务经验、程序记忆、时间衰减 | Operit Memory 数据模型 | PowerMem、X-OmniClaw MemoryIndex | `MemoryService` |
+| M18 | 远程电脑 | Windows、Linux、浏览器、服务器能力协商和执行 | ClawGUI DeviceBackend | nanobot Gateway、Operit HTTP bridge | `RemoteAgentTransport` |
+| M19 | 后台自动化 | 定时、事件触发、长任务、断点恢复 | Operit WorkflowScheduler | X-OmniClaw 定时任务、ClawGUI Cron | `AutomationService` |
+| M20 | 评测与观测 | ROM、GUI、检索、Skill、成本和错误指标 | Operit 日志体系 | ClawGUI-Eval/RL、KnowAct 设备日志 | 独立 `evaluation` 工程 |
+
+## 五类处理方式的最终归类
+
+### A. 直接照搬后改
+
+- ClosePaw 的生命周期状态机、租约和资源清理；
+- X-OmniClaw 的 `AlbumScanner`、媒体游标和图片记录；
+- Operit 的 OCR、文档转换和 WorkManager 调度入口；
+- PocketSearch 的向量集合字段、索引版本、查询结果和进度模型；
+- KnowAct 的 `SkillStep`、状态契约和验证晋升状态；
+- ClawGUI-Skills 的 SkillPackage 目录、版本快照和失败案例结构。
+
+### B. 换语言或运行时重写
+
+- KnowAct Python 轨迹编译器：核心动作规范化在 Kotlin 重写，复杂模型修订保留独立 Python 服务；
+- PocketSearch Dart/MNN/Zvec：Android 端改为 Kotlin 接口 + MNN/ONNX + Zvec/ObjectBox；
+- ClawGUI Python DeviceBackend：转换为 Kotlin/IPC 或 HTTP 能力协议；
+- Semantic Finder Python watcher：转换为 ContentObserver + WorkManager + 周期校正扫描；
+- ClawGUI-Skills Python Runtime：端侧只实现 SkillPackage 执行和状态记录，生成/修订在服务端运行。
+
+### C. 只能学习思路
+
+- EagleRAG 的服务端多租户和文本/视觉双管线；
+- RAG-Anything 的多模态文档关系；
+- ColPali 的页面级多向量检索；
+- PixelRAG 的视觉切片；
+- PowerMem 的记忆生命周期和图检索；
+- Qwen3-VL/WeMM 的模型训练和统一表示。
+
+### D. 只吸收一两点特性
+
+- Aries：参数类型探测、任务迁移、IME 策略；
+- Ruto：每个 display 独立 Job 和停止链；
+- Ente：图片预处理、设备状态调度和索引一致性；
+- Immich：资产元数据、OCR、CLIP、人脸和高级过滤；
+- Zafiro：按需工具加载和 Skill/MCP 目录；
+- Operit Shower：AIDL 特权服务和视频帧边界。
+
+### E. 删减后再使用
+
+- Operit：隔离 `dragonbones`、`fbx`、`mmd`，拆出市场和示例，按能力启用高权限；
+- Operit：把 `ToolRegistration.kt` 拆成多个注册器，把 `MemoryRepository.kt` 拆成多个仓库；
+- Operit：将 `VirtualDisplayManager` 降为旧实现适配器，接入 ClosePaw 内核；
+- X-OmniClaw：移除直接将行为事件写成正式 Skill 的路径，改为 Episode -> SkillIR -> 验证；
+- ClawGUI：将 RL、评测 UI 和桌面协调器从 Android 生产包中隔离；
+- EagleRAG：只保留解析、视觉块、引用和检索合同，不带入 Milvus/Redis/MinIO 运行栈。
+
+## 根工程取舍结论
+
+### Operit 作为根工程
+
+优势：Android 原生能力最完整，文件、OCR、向量、工作流、模型、Shower 和后台服务都已有实际代码；可以直接复用现有用户界面和权限流程；与 X-OmniClaw、ClosePaw、PocketSearch 的 Kotlin/Android 模块整合成本最低。
+
+代价：`MemoryRepository`、`ToolRegistration` 和 `ShowerController` 内聚度不足；已有 ROM 问题需要重新建立证据矩阵；跨设备控制和 GUI 轨迹编译需要新增协议；不做拆分会继续放大单体复杂度。
+
+### ClawGUI 作为根工程
+
+优势：跨设备、模型、会话、Episode 和远程渠道已经形成控制面。
+
+代价：Android 原生文件权限、OCR、Office、虚拟屏、Shower、本地模型和后台服务需要重新接入；Python/Kotlin 双运行时会增加状态同步和发布复杂度。
+
+### 结论
+
+以 `Operit` 为产品根工程，以端口和适配器吸收其他项目；`ClawGUI` 作为远程控制面和协议参考；`ClosePaw` 作为显示执行内核；`PocketSearch` 作为端侧图片向量检索参考；`EagleRAG` 作为服务端多模态资产检索参考。
+
+## 当前不改源码的准备项
+
+1. 继续以本文维护源码级证据和决策记录。
+2. 在 `AutoRefer/operit` 的 `zhifagui-integration` 分支维护后续实现。
+3. 先建立 Operit 当前行为清单和模块依赖图。
+4. 为每个端口定义输入、输出、错误、取消和资源释放合同。
+5. 先为接口和替代路径设计测试，再开始实际迁移。
+6. 所有删除动作必须等依赖扫描、回归测试和 ROM 验证完成后执行。
+
 ## 直接实施顺序
 
 ```text
