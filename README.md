@@ -50,6 +50,39 @@ Android 非接口化 GUI Agent 技术参考仓库。
 - `Zafiro`：主要提供 Accessibility、Root/Shizuku、Python、MCP、Skill 和 Xposed，不是系统 Virtual Display 实现；厂商语音助手接管需单独适配。
 - 所有参考：区分功能声明、源码实现和设备实测；移植前检查许可证、权限/数据边界、后台生命周期和失败清理。
 
+## 整合底座与模块取舍
+
+目标不是拼接项目，而是建立“任务控制面 + 多执行适配器”。推荐以 `ClosePaw` 的执行内核为底座，按层吸收其他项目：
+
+| 领域 | 底座或来源 | 吸收内容 | 约束与边界 |
+|---|---|---|---|
+| 虚拟屏执行 | `ClosePaw` | 生命周期、会话租约、并发控制、输入/截图、任务清理、错误状态 | 补齐 API 30-33 适配；不能假设所有 ROM 支持二级屏 |
+| 显示与输入适配 | `Aries-AI` | OpenGL 双路帧分发、输入签名探测、任务迁移、IME 焦点处理 | `VirtualDisplayConfig` 仅走 API 34+；输入必须返回可验证结果 |
+| Agent Runtime | `Zafiro` | 无障碍树、工具注册、Skill、MCP、Python、Root/Shizuku | 作为上层运行时，不承担 Virtual Display 底座 |
+| 特权服务与工具 | `Operit` | Shower AIDL、截图/视频、浏览器、终端、文件、工作流和调度 | 独立进程、按能力拆分权限；不整体引入大单体和 ROM 特判 |
+| 轨迹与技能 | `MobiAgent`、`Mobile-Agent-E`、`DroidAgent`、`Ghost in the Droid` | 轨迹记录、检索、反思、脚本生成、技能注册和版本验证 | 必须统一为可参数化、可验证、可失效检测的 Skill |
+
+全域能力由新增控制面统一管理：
+
+```text
+任务/会话控制面
+  上下文、记忆、会话、Skill、权限、审计、模型路由
+        |
+能力路由层
+  Android GUI | Virtual Display | 远程电脑 | Shell/MCP | 云端 API
+        |
+执行内核
+  ClosePaw 生命周期 + Aries 适配与帧管线
+```
+
+必须支持端侧模型与云端 API 的统一接入，并按隐私、网络、延迟、算力和费用动态路由。GUI Agent 的探索结果应进入“GUI 轨迹编译与技能沉淀”流程：
+
+```text
+自主探索 -> 完成验证 -> 轨迹去冗余 -> 提取参数/前置条件 -> 生成脚本或 Skill -> 回放测试 -> 版本化入库
+```
+
+推荐顺序：先稳定 `ClosePaw + API 适配`，再接入 Aries 帧管线；随后接入 Zafiro Runtime 和 Operit 独立服务；最后建设远程电脑、长期记忆、云端模型路由和跨设备协同。这样牺牲部分早期功能数量，换取执行链可验证、失败可诊断、ROM 适配可扩展。
+
 ## 目录
 
 - `references/`：项目定位、源码索引和证据记录
