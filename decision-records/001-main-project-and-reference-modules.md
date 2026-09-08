@@ -316,6 +316,61 @@ OperitApplication
 
 若第 3、4、8 项任一答案为“否”，先拆适配器和数据边界，再进行功能吸收。
 
+## 源码核对记录
+
+本节记录基于实际源码的判断，功能 README 只作为辅助证据。
+
+### Operit
+
+- `VirtualDisplayManager.kt` 是应用级单例，直接持有 `VirtualDisplay`、`ImageReader` 和 `displayId`，通过公开 `DisplayManager.createVirtualDisplay` 创建显示；`release()` 负责释放显示和读取器。它适合作为旧实现适配器，不适合作为最终执行内核，因为没有会话租约、状态机、Binder 死亡处理、任务清理和显示隔离。
+- `MemoryRepository.kt` 约 2814 行，同时负责 Memory/DocumentChunk CRUD、文档分块、Embedding 请求、按向量维度重建 HNSW、关键词检索、语义检索、RRF 风格加权、图关系和数据迁移。它是高耦合核心，不能直接扩展成全域 AssetRepository；应拆为资产仓库、文本索引、向量索引、文档分块和关系查询。
+- `ToolRegistration.kt` 约 2634 行、约 114 KB，集中注册大量工具并在函数内部处理界面隐藏、权限、代理工具和运行时上下文。它只能作为现有工具清单，后续应按 capability package 拆分注册器。
+- `WorkflowWorker.kt` 通过 WorkManager 触发 `WorkflowRepository.triggerWorkflow`，适合保留为调度适配器；任务状态、取消和证据不应继续隐藏在 Worker 内部。
+- `ShowerController.kt` 同时管理 Binder 获取、服务重启、虚拟显示 ID、视频帧缓存、截图和输入。应保留 AIDL 边界，将显示会话、帧流和输入分别抽成端口。
+
+### ClosePaw
+
+- `VirtualDisplayPlatform.kt` 使用 `VdLifecycleArbiter` 串行化 start/stop，并用 Running/Draining/Broken 状态控制截图和动作租约；启动失败会关闭 ImageReader、释放显示并清理代理；Shizuku Binder 死亡会转为 Broken。这部分是 Android 执行内核的直接复制起点。
+- ClosePaw 把 `VirtualDisplayWindowAccessor`、`VirtualDisplayInputInjector`、`VirtualDisplayScreenshotProcessor`、`VirtualDisplayAppController` 和 `VirtualDisplaySurfaceController` 分开，符合高内聚要求。移植时只替换其平台接口和模型类型，不把 Agent UI 一起带入 Operit。
+
+### Aries-AI
+
+- `ShizukuVirtualDisplayEngine.kt` 枚举 `createVirtualDisplay` 方法并按参数类型选择签名，随后在 `buildVirtualDisplayConfig()` 无条件反射加载 `VirtualDisplayConfig$Builder`；该实现证明了 ROM/API 探测思路有价值，也证明不能直接照搬到 API 30-33。
+- `ensureFocusedDisplay()`、`setDisplayImePolicy` 和 `releaseVirtualDisplay` 均通过隐藏接口反射或命令执行；这些应封装成可观测的 `DisplayControlPort`，每次调用返回方法来源、API、错误和结果。
+
+### X-OmniClaw
+
+- `AlbumScanner.kt` 使用 MediaStore 的“修改时间 + 媒体 ID”游标增量扫描图片；`GalleryMemoryWorkflow.kt` 串联扫描、摘要、写入和画像生成，适合作为相册数据源适配器。
+- `ImageMemorySummarizer.kt` 将图片压缩后以 `imageDataUrls` 发送给统一视觉模型，生成摘要和抽取文字；它没有生成原图多模态向量。
+- `MemoryIndex.kt` 对文本文件分块，调用 OpenAI 兼容 `/embeddings`，将向量写入 SQLite BLOB，并使用 FTS5 和逐条余弦计算进行混合搜索。该实现适合记忆文件原型，不适合大规模全媒体索引；全量图片向量应迁移到专用向量索引。
+- `ImageMemorySearchEntriesSkill.kt` 先搜索 `IMAGE-MEMORY.md` 的文本块，再通过行号关联图片条目；这能证明“检索结果必须回链原始资产”，但不能替代原图向量检索。
+
+### PocketSearch
+
+- `ClipService` 将 MobileCLIP 图像和文本编码器常驻内存，图像输入归一化为 256×256，输出 512 维向量。
+- `VectorStore` 使用 Zvec 集合、HNSW 和标量字段保存 `photo_id`、路径、时间和经纬度，并用版本文件触发索引迁移；`SearchService` 先改写查询、编码文本，再执行向量查询和距离阈值过滤。
+- 该实现是 Android 图片检索的直接参考，但当前数据模型只支持照片；扩展到全域资产时需要增加资产类型、来源、权限、解析版本和多向量字段。
+
+### KnowAct/GUIClaw
+
+- `trajectory_codegen.py` 从轨迹事件提取动作、截图、参数、应用和 `state_contract`，并根据 UI 树为输入框生成焦点契约；它是 `Episode -> SkillIR` 的直接实现起点。
+- `flat.py` 将声明式 `Skill/SkillStep` 编译为受限 Python 技能，带有参数占位符、固定动作和技能合并；`_merger.py` 使用动作序列、语义和向量相似度判断技能冲突。
+- `shortcut_validation.py` 将静态快捷动作和设备运行验证分离，只有验证结果满足条件才执行 `promote`；这一边界应成为正式 SkillStore 的晋升门槛。
+
+### ClawGUI-Skills
+
+- `SkillPackage` 由 metadata、plan、backup、recover、failure_examples、versions、edits 和 runs 组成；`SkillEvolutionEngine` 在修订前保存版本快照，并只允许受限文件工具修改技能包内指定文件。
+- `IsolatedTrajectoryVerifier` 只读取任务指令、已清理轨迹和有限截图，不读取执行器内部推理，适合作为独立验证器；该信息边界应保留。
+
+### 源码结论
+
+1. `Operit` 是产品宿主，但现有 `MemoryRepository`、`ToolRegistration` 和 `ShowerController` 都需要先拆边界。
+2. `ClosePaw` 是虚拟显示生命周期的最佳直接实现起点。
+3. `PocketSearch` 是端侧图片向量检索的最佳直接实现起点。
+4. `X-OmniClaw` 直接提供相册扫描和图片摘要，不直接提供原图向量库。
+5. `KnowAct` 和 `ClawGUI-Skills` 共同构成轨迹编译、验证、晋升和技能演化链。
+6. `EagleRAG`、`ColPali`、`PixelRAG`、`PowerMem` 和 Qwen/WeMM 模型应通过端口吸收，不应把其服务端基础设施直接嵌入 Android。
+
 ## 直接实施顺序
 
 ```text
