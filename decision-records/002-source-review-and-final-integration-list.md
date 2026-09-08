@@ -132,6 +132,10 @@
 | `ClawGUI/clawgui-agent/phone_agent/integration/contracts.py` | 不可变 `TaskSession`、`Episode`、`EpisodeStep`、`VerificationResult` 和 `SkillPipeline`，明确 candidate/validated/promoted/deprecated | 直接作为总控制面的领域合同；Android/第三方实现只能实现 Adapter，不修改合同 |
 | `ClawGUI/clawgui-agent/phone_agent/device_factory.py` | ADB/HDC/iOS 通过延迟加载模块共享同一设备操作接口，但保留全局 factory | 吸收设备能力接口；重写为会话作用域 Provider，禁止全局设备类型污染并发任务 |
 | `ClawGUI/clawgui-skills/clawgui_skills/verifier.py`、`evolution.py` | Verifier 只读取脱敏轨迹和有限截图；无模型时按重复动作/定位错误给出反馈；修订通过受限文件工具、版本快照和失败案例写回 | 直接吸收验证信息边界、受限修订和版本快照；仍需接入真机结果和 ROM 证据 |
+| `Aries-AI/.../ShizukuVirtualDisplayEngine.kt`、`VirtualAsyncInputInjector.kt` | 虚拟屏创建会扫描 `createVirtualDisplay` 方法，输入会探测 2/3 参数 `injectInputEvent`；但 `buildVirtualDisplayConfig` 无论设备版本都反射 `VirtualDisplayConfig.Builder`，输入注入为异步 best-effort 且吞掉结果 | 只吸收候选签名扫描、帧分发和 IME 处理；API 34 Builder 缺口、输入结果和低版本回退必须重写 |
+| `Ruto-GLM/.../RutoAiTasker.kt`、`InputManagerService.kt`、`DisplayManagerServiceStub.kt` | 会话状态完成后按 `displayId` 建独立 `Job`；API 33 调 `injectInputEventToTarget`，旧版本调 `injectInputEvent`；显示通过 `ConcurrentHashMap` 管理，但 ImageReader 释放和输入返回值不完整 | 吸收 display/job 隔离和输入坐标构造；删除聊天产品层，补资源释放、注入结果和 ROM 探测 |
+| `zafiro/libs/okia/.../ToolRegistry.kt`、`agent-runtime/.../ToolManager.kt`、`app/.../SkillFileRepository.kt` | 工具描述与执行器分离，支持 Local/MCP/Python；Skill 文件有路径解析、启用状态、冲突和导入；Shell 有命令规则、锁定状态和人工确认 | 直接吸收工具/Skill 注册合同和 Shell 安全策略；不复制 Xposed 宿主和 UI，改接控制面权限 |
+| `X-OmniClaw/.../MemoryIndex.kt`、`SessionManager.kt`、`MessageCompactor.kt`、`SkillInstaller.kt` | SQLite+FTS5+逐条余弦向量混合检索；JSONL 会话索引和写锁；上下文压缩有超时、质量审计和回滚；Skill 安装有 ZIP 路径检查、SHA-256 和 lock 文件 | 直接吸收文件/会话/安装的局部实现；大规模向量检索、权限和版本事实源必须统一到控制面合同 |
 
 ## 四、按模块需求确定底座和吸收清单
 
@@ -148,7 +152,16 @@
 | 远程电脑 Agent | ClawGUI Gateway/Channel | KnowAct Windows backend、Zafiro MCP、Operit Shell | 手机和电脑共用能力路由 | 心跳、重连、取消、授权撤回 |
 | 训练与评测 | ClawGUI-RL/Eval | KnowAct 验证日志、ROM 兼容矩阵 | 生产与实验分离 | 不把训练依赖打入 Android 包 |
 
-## 五、高内聚、低耦合约束
+## 五、迁移优先级与退出条件
+
+| 优先级 | 先迁移的模块 | 原因 | 进入下一阶段的条件 |
+|---|---|---|---|
+| P0 | ClawGUI 合同、ClosePaw 生命周期、Ghost Action/Workflow/trace-to-steps、KnowAct 验证状态 | 这些模块决定任务、设备、轨迹和 Skill 的稳定边界 | 合同冻结；启停、输入、截图、清理和 candidate/promote 流程均可观测 |
+| P1 | Operit OCR/文档/权限 Adapter、X-OmniClaw MediaStore/Session、local-photo-search 图像索引、Zafiro Tool/MCP | 直接形成 Android 端文件、会话和工具能力 | 权限可撤回；索引可增量重建；工具可取消；第三方替换不改控制面 |
+| P2 | Aries/Ruto 多虚拟屏增强、PowerMem Memory/Handoff、semantic-finder/EagleRAG 混合检索、远程电脑 | 提升兼容性、记忆质量和跨设备能力，但依赖边界较多 | ROM/API 矩阵通过；存储和 IPC 合同稳定；失败可降级 |
+| P3 | Qwen3/WeMM、ColPali、Qdrant、RL/Eval、跨模态统一检索 | 主要提升效果或规模，不是最小可用链路 | 通过召回、延迟、费用、隐私和资源评测后按需启用 |
+
+## 六、高内聚、低耦合约束
 
 依赖方向固定为：
 
@@ -170,7 +183,7 @@ ControlPlane -> Contracts -> CapabilityRouter
 
 替换 `ClosePaw`、`Operit`、`Aries`、`Ruto` 或 `X-OmniClaw` 时，控制面、`SkillIR` 和资产合同不应修改。
 
-## 六、当前准备状态和后续顺序
+## 七、当前准备状态和后续顺序
 
 已完成：
 

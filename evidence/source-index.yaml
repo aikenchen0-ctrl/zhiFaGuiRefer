@@ -3,12 +3,16 @@ sources:
     url: https://github.com/ZG0704666/Aries-AI
     role: execution-layer
     license: AGPL-3.0
-    evidence_level: L2
+    evidence_level: L1
+    local_path: AutoRefer/Aries-AI
+    reviewed_files: [app/src/main/java/com/ai/phoneagent/vdiso/ShizukuVirtualDisplayEngine.kt, app/src/main/java/com/ai/phoneagent/input/VirtualAsyncInputInjector.kt, app/src/main/java/com/ai/phoneagent/VirtualDisplayController.kt]
   - id: zafiro
     url: https://github.com/niki914/zafiro
     role: agent-runtime
     license: MIT
-    evidence_level: L2
+    evidence_level: L1
+    local_path: AutoRefer/zafiro
+    reviewed_files: [libs/okia/src/main/java/com/niki914/okia/tooling/ToolRegistry.kt, agent-runtime/src/main/java/com/niki914/zafiro/chat/agentic/ToolManager.kt, app/src/main/java/com/niki914/zafiro/repo/SkillFileRepository.kt, agent-runtime/src/main/java/com/niki914/zafiro/chat/agentic/shell/ShellCommandSafetyPolicy.kt]
   - id: mobiagent
     url: https://github.com/IPADS-SAI/MobiAgent
     role: action-memory
@@ -39,6 +43,12 @@ sources:
     evidence_level: L1
     local_path: AutoRefer/AppAgentX
     reviewed_files: [explor_auto.py, data/State.py, data/graph_db.py, data/data_storage.py, chain_evolve.py]
+  - id: ruto-glm
+    url: https://github.com/iamr0s/Ruto-GLM
+    role: multi-display-execution
+    evidence_level: L1
+    local_path: AutoRefer/Ruto-GLM
+    reviewed_files: [app/src/main/java/com/rosan/ruto/ruto/observer/RutoAiTasker.kt, app/src/main/java/com/rosan/ruto/service/InputManagerService.kt, app/src/main/java/com/rosan/ruto/service/display/DisplayManagerServiceStub.kt]
   - id: clawgui
     url: https://github.com/ZJU-REAL/ClawGUI
     role: control-plane
