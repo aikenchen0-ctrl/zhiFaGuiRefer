@@ -97,3 +97,21 @@ sources:
     evidence_level: L1
     local_path: AutoRefer/clip-as-service
     reviewed_files: [server/clip_server/executors/clip_onnx.py, server/clip_server/model/clip_model.py, client/clip_client/client.py]
+  - id: local-photo-search
+    url: https://github.com/Toby7-7/local-photo-search
+    role: android-image-index
+    evidence_level: L1
+    local_path: AutoRefer/local-photo-search
+    reviewed_files: [app/src/main/java/com/photosearch/app/search/MediaStoreScanner.kt, app/src/main/java/com/photosearch/app/search/PhotoIndexStore.kt, app/src/main/java/com/photosearch/app/search/ImageEmbeddingIndexer.kt, app/src/main/java/com/photosearch/app/search/VectorStore.kt, app/src/main/java/com/photosearch/app/model/ModelRegistry.kt]
+  - id: pocket-search
+    url: https://github.com/feihongxu0824/PocketSearch
+    role: cross-platform-image-search
+    evidence_level: L1
+    local_path: AutoRefer/PocketSearch
+    reviewed_files: [lib/services/clip_service.dart, lib/services/vector_store.dart, lib/services/index_service.dart, lib/services/search_service.dart, lib/services/query_rewriter.dart]
+  - id: tidy-ocr
+    url: https://github.com/RootInit/tidy-ocr
+    role: android-onnx-image-search
+    evidence_level: L1
+    local_path: AutoRefer/tidy-ocr
+    reviewed_files: [app/src/main/java/com/slavabarkov/tidy/viewmodels/ORTImageViewModel.kt, app/src/main/java/com/slavabarkov/tidy/data/ImageEmbeddingRepository.kt, app/src/main/java/com/slavabarkov/tidy/data/ImageEmbeddingDao.kt]

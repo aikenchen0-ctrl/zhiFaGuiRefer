@@ -54,6 +54,7 @@
 | GUI 任务循环和 Provider | `ClawGUI/clawgui-agent/phone_agent`、`nanobot` | 接入统一 `TaskSession`、取消和审计 | 控制面现成；需隔离渠道和模型私有状态 |
 | 虚拟屏生命周期 | `ClosePaw` `VirtualDisplayPlatform`、Shizuku transport | 接入 `DeviceBackend`，补 API/ROM 能力探测 | 生命周期和清理边界清晰；仍受 ROM 二级屏限制 |
 | 相册增量扫描 | `X-OmniClaw/agent/memory/gallery/AlbumScanner.kt` | 改为统一 `AssetRecord` 和权限事件 | MediaStore 游标可复用；不覆盖应用私有目录 |
+| 端侧图片向量索引 | `local-photo-search/.../MediaStoreScanner.kt`、`PhotoIndexStore.kt`、`ImageEmbeddingIndexer.kt` | 接入统一 `AssetRecord`、任务队列和模型 Provider | 已有增量、失败重试、模型版本和 QNN/NNAPI/CPU 选择；需补中文模型和权限撤回 |
 | 图片摘要与隐私过滤 | `X-OmniClaw/ImageMemorySummarizer.kt`、`PrivacyFilter` | 摘要写入 `AssetStore`，保留原始 URI 引用 | 可快速建立“找文件”能力；摘要不能替代原图向量 |
 | 轨迹状态合同 | `KnowAct/state_contract.py`、`data.py` | 转为统一 `Episode`/`SkillIR` 字段 | 前置条件、动作和证据明确；需适配 Kotlin/IPC |
 | Skill 包和版本校验 | `ClawGUI-Skills/schema.py`、`package.py`、`verifier.py` | 与端侧安装格式和签名字段统一 | 版本、失败案例和审计完整；不能跳过回放验证 |
@@ -105,6 +106,7 @@
 | `Aries-AI` | 主 UI、重复输入实现、API 30-33 不可用入口 | 帧分发、IME、任务迁移和能力探测思路 |
 | `Ruto-GLM` | Compose 聊天层、模型管理 UI、固定协议 | Display/Job/Input 低层执行能力 |
 | `Zafiro` | Xposed 宿主、厂商语音接管、产品 UI | 工具注册、MCP、Python、Skill Runtime |
+| `TIDY` | Fragment/UI、主线程索引循环和固定英文 CLIP 模型 | ONNX 图文编码、Room 数据结构和跳过截图规则 |
 | `ClawGUI` | RL、评测和非目标渠道的生产依赖 | Agent、Provider、Session、Episode、远程协议 |
 
 ## 三、源码核查新增证据
@@ -136,6 +138,11 @@
 | `Ruto-GLM/.../RutoAiTasker.kt`、`InputManagerService.kt`、`DisplayManagerServiceStub.kt` | 会话状态完成后按 `displayId` 建独立 `Job`；API 33 调 `injectInputEventToTarget`，旧版本调 `injectInputEvent`；显示通过 `ConcurrentHashMap` 管理，但 ImageReader 释放和输入返回值不完整 | 吸收 display/job 隔离和输入坐标构造；删除聊天产品层，补资源释放、注入结果和 ROM 探测 |
 | `zafiro/libs/okia/.../ToolRegistry.kt`、`agent-runtime/.../ToolManager.kt`、`app/.../SkillFileRepository.kt` | 工具描述与执行器分离，支持 Local/MCP/Python；Skill 文件有路径解析、启用状态、冲突和导入；Shell 有命令规则、锁定状态和人工确认 | 直接吸收工具/Skill 注册合同和 Shell 安全策略；不复制 Xposed 宿主和 UI，改接控制面权限 |
 | `X-OmniClaw/.../MemoryIndex.kt`、`SessionManager.kt`、`MessageCompactor.kt`、`SkillInstaller.kt` | SQLite+FTS5+逐条余弦向量混合检索；JSONL 会话索引和写锁；上下文压缩有超时、质量审计和回滚；Skill 安装有 ZIP 路径检查、SHA-256 和 lock 文件 | 直接吸收文件/会话/安装的局部实现；大规模向量检索、权限和版本事实源必须统一到控制面合同 |
+| `local-photo-search/.../MediaStoreScanner.kt`、`PhotoIndexStore.kt`、`ImageEmbeddingIndexer.kt` | 使用 API 33/34 分级媒体权限；以 `date_modified + media_id` 增量扫描；SQLite 保存 pending/indexed/failed、重试、模型版本和向量偏移；编码器按 QNN/NNAPI/CPU 探测；索引器缓存会话并支持协程取消 | 直接照搬端侧图像索引骨架；补全文件类型、中文/多语模型、权限撤回和统一 `AssetRecord` |
+| `local-photo-search/.../VectorStore.kt`、`TextEmbeddingSession.kt`、`ModelRegistry.kt` | 向量文件使用 mmap 连续读取；查询 Embedding 有内存+SQLite 缓存；模型目录通过 `model.json` 动态发现，模型文件不打包进 APK | 直接吸收轻量向量存储、模型注册和维度合同；需增加原子提交、崩溃恢复和模型签名 |
+| `PocketSearch/lib/services/clip_service.dart`、`vector_store.dart` | MNN 同时加载图像/文本 CLIP 并保持 512 维共享空间；Zvec schema 带版本文件，升级时删除旧库重建；标量过滤字段写入哨兵值，避免缺失字段绕过过滤 | 重写为 Kotlin/MNN 或 ONNX Provider；吸收 schema 迁移、过滤字段完整性和模型常驻策略 |
+| `PocketSearch/lib/services/index_service.dart`、`search_service.dart`、`query_rewriter.dart` | 先同步相册 ID 删除陈旧记录，再用缩略图规避 HEIC 解码失败；批量编码后定期 optimize；查询重写失败回退原词，并支持日期/地理过滤 | 删掉 Flutter UI 后使用索引流程和查询合同；中文语义重写、隐私开关和端侧网络降级需重写 |
+| `tidy-ocr/.../ORTImageViewModel.kt`、`ImageEmbeddingRepository.kt`、`ImageEmbeddingDao.kt` | 以 ONNX `visual_quant` 对 MediaStore 图片逐张编码，Room 保存 `id/date/embedding`，跳过 Screenshots；索引循环在 ViewModel 启动 | 只能作为最小 ONNX+Room 基线；必须移到后台队列、增加失败状态、增量 hash 和模型版本 |
 
 ## 四、按模块需求确定底座和吸收清单
 

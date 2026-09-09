@@ -6,7 +6,7 @@ Android 非接口化 GUI Agent 技术参考仓库。
 
 ## 两条核心主线
 
-1. **虚拟屏与 GUI Agent 运行框架**：以 Aries-AI 为执行层主参考，研究 Shizuku、Virtual Display、定向输入、焦点隔离、后台截图和无障碍操作。
+1. **虚拟屏与 GUI Agent 运行框架**：以 ClosePaw 为生命周期执行底座，结合 Aries-AI 和 Ruto-GLM 研究 Shizuku、Virtual Display、定向输入、焦点隔离、后台截图和无障碍操作。
 2. **轨迹采集与技能封装**：研究如何把高频 GUI 操作转换为可参数化、可验证、可失效检测和可回退的 Android 操作技能。
 
 ## 总体链路
@@ -44,7 +44,7 @@ Android 非接口化 GUI Agent 技术参考仓库。
 
 ## 源码复核后的当前根工程结论
 
-面向“全域 AI 助手”，当前推荐 **ClawGUI 作为总根工程和控制面**；`Operit` 作为 Android 文件、OCR、文档、Shower 和端侧工具能力底座，`ClosePaw` 作为虚拟屏执行内核。`KnowAct`、`ClawGUI-Skills`、`PowerMem`、`X-OmniClaw`、`local-photo-search` 等只按适配器和 Provider 接入。
+面向“全域 AI 助手”，当前推荐 **ClawGUI 作为总根工程和控制面**；`Operit` 作为 Android 文件、OCR、文档、Shower 和端侧工具能力适配器，`ClosePaw` 作为虚拟屏执行内核，`local-photo-search` 作为端侧图片索引起点。`KnowAct`、`ClawGUI-Skills`、`PowerMem`、`X-OmniClaw` 等只按适配器和 Provider 接入。
 
 旧的 Android 优先方案仍保留在 [`decision-records/001-main-project-and-reference-modules.md`](decision-records/001-main-project-and-reference-modules.md) 作为历史记录；基于实际源码复核后的五类迁移策略、模块需求、直接照搬清单、吸收清单和取舍，统一以 [`decision-records/002-source-review-and-final-integration-list.md`](decision-records/002-source-review-and-final-integration-list.md) 为准。
 
