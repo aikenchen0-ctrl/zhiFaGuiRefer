@@ -6,42 +6,185 @@
 
 ## 一、根工程选择
 
-### 方案 A：ClawGUI 作为总根工程，推荐
+### 方案 A：ClawGUI 单根工程
 
-`ClawGUI` 作为控制面和服务端根工程，`clawgui-agent` 承担任务循环、会话、模型 Provider、Episode、远程渠道和设备后端协议。
+`ClawGUI` 作为唯一根工程，`clawgui-agent` 承担任务循环、会话、模型 Provider、Episode、远程渠道和设备后端协议。
+
+优势：跨设备、远程电脑、云端模型和 Agent 控制面最完整，Python 适合快速演进轨迹编译、Skill 修订、模型路由和评测。
+
+代价：Android 原生文件权限、OCR、Office、虚拟屏、Shower、端侧模型和后台服务都要重新接入；Python/Kotlin 之间需要维护 IPC、取消、错误和状态合同。
+
+### 方案 B：Operit 单根工程
+
+`Operit` 作为唯一 Android 根工程，保留会话、工具、模型、文件、OCR、文档转换、向量、工作流、Shower 和后台服务。
+
+优势：Android 端落地最快，现有文件和文档能力最多，和 ClosePaw、X-OmniClaw、PocketSearch 的 Kotlin 模块整合成本最低。
+
+代价：跨设备和远程电脑控制面不足；`ToolRegistration.kt`、`MemoryRepository.kt`、权限和 UI 耦合较重；继续扩展会把 Android 单体变成全域系统的瓶颈。
+
+### 方案 C：ClawGUI + Operit 双核心总工程，推荐
+
+总工程采用单一仓库或统一版本编排，但保留两个独立运行面：
+
+```text
+ClawGUI ControlPlane
+  任务、全局会话、模型路由、远程渠道、电脑/浏览器 Agent、Skill 生命周期
+          |
+          | 中立合同：Task / Device / Asset / Episode / Skill / Evidence
+          |
+Operit AndroidRuntime
+  Android 权限、文件资产、解析/OCR/向量索引、GUI、虚拟屏、Shower、端侧模型
+```
+
+这是“一个总工程、两个边界明确的根运行时”，不是把两个项目的内部代码互相引用。
 
 优势：
 
-- 与全域目标最匹配，已有任务、会话、记忆、Episode、模型 API、远程渠道和多设备抽象；
-- Python 控制面适合快速演进轨迹编译、Skill 修订、模型路由和评测；
-- 远程电脑、浏览器、Android 和云端模型可以统一为 `DeviceBackend`、`ModelProvider` 和 `CapabilityRouter`；
-- 训练、评测和生产运行时可以保持边界，不把实验依赖带入手机。
+- ClawGUI 保留全域控制面，Operit 保留 Android 资产能力，覆盖目标最完整；
+- 资产索引和 Android 权限由 Operit 内聚管理，跨设备任务和云端能力由 ClawGUI 内聚管理；
+- 手机可独立运行，电脑/云端可作为增强节点；
+- 替换 Android 执行实现或远程控制实现时，另一侧只依赖合同，不感知内部类；
+- 训练、评测、云端 RAG 和端侧运行时可以分离部署。
 
 代价：
 
-- 必须新增或接入 Android 原生文件权限、OCR、虚拟屏、Shower、端侧模型和后台服务；
-- Python/Kotlin 之间要维护 IPC、取消、错误和状态合同；
-- 手机离线运行需要额外的轻量端侧 Runtime。
+- 两个运行时需要维护版本、连接、取消、重试和状态一致性；
+- 必须建立中立合同包，不能让 Python dataclass 或 Kotlin data class 直接成为跨边界事实源；
+- 需要处理离线手机、断网恢复、重复提交、事件顺序和权限撤回；
+- 构建、发布和调试链路比单根工程复杂。
 
-### 方案 B：Operit 作为 Android 产品根工程
+### 双核心的事实源划分
 
-`Operit` 作为 Android 宿主，保留其会话、工具、模型、文件、OCR、文档转换、向量、工作流、Shower 和后台服务。
-
-优势：
-
-- Android 权限、前台服务、端侧模型和本地文件能力已有实际代码；
-- 与 `ClosePaw`、`X-OmniClaw`、`PocketSearch` 的 Kotlin/Android 模块整合成本较低；
-- 可以优先形成单机可用产品。
-
-代价：
-
-- 工具注册、权限、UI、模型和业务状态耦合较重，必须先拆分；
-- 跨设备、远程电脑、复杂会话和 Skill 编译需要重新建立控制面；
-- ROM 特判、虚拟屏和本地向量索引会成为 Android 单体的长期维护负担。
+| 数据或能力 | 唯一事实源 | 对侧访问方式 |
+|---|---|---|
+| 全局任务、跨设备 Session、模型路由、远程渠道 | ClawGUI ControlPlane | 合同 API、事件和命令 |
+| Android DeviceSession、权限和 ROM 能力 | Operit AndroidRuntime | 能力注册和状态上报 |
+| 手机原始文件、URI、解析状态、向量和全文索引 | Operit Asset Intelligence | `AssetId`、证据和受控内容流 |
+| 跨设备资产目录和检索任务 | ClawGUI Index Gateway | 远程查询，不复制手机原始路径 |
+| Skill 版本、晋升和审计 | ClawGUI SkillLifecycle | Operit 只保存已安装运行版本 |
+| Android GUI、虚拟屏、输入、截图和动作结果 | Operit Device Runtime | `DeviceBackend` 命令和结果 |
+| 电脑/浏览器执行 | ClawGUI Remote Providers | 同一 `DeviceBackend` 合同 |
 
 ### 当前结论
 
-选择 **方案 A：ClawGUI 为总根工程**。`Operit` 降级为 Android 能力底座和适配器来源，`ClosePaw` 为虚拟屏执行内核，`KnowAct` 为轨迹编译和验证闸门，`ClawGUI-Skills` 与 `PowerMem` 提供 Skill/Memory 生命周期，`X-OmniClaw`、`local-photo-search` 和 `Operit` 提供个人数据能力。
+选择 **方案 C：ClawGUI + Operit 双核心总工程**。`ClawGUI` 是总控制面根，`Operit` 是 Android 运行根；`ClosePaw` 为虚拟屏执行内核，`KnowAct` 为轨迹编译和验证闸门，`ClawGUI-Skills` 与 `PowerMem` 提供 Skill/Memory 生命周期，`X-OmniClaw`、`PocketSearch`、`Ente`、`Immich` 和 `Operit` 提供个人数字资产能力。
+
+如果当前阶段只允许维护一个可安装应用，先发布 Operit AndroidRuntime；如果目标是全域产品和跨设备编排，必须按方案 C 设计接口，不能把 ClawGUI 或 Operit 的内部状态直接合并。
+
+### “Operit + ClawGUI”作为总根工程的优劣详表
+
+#### 优势
+
+1. **能力覆盖完整**：Operit 已有 Android 文件、OCR、Office/PDF、向量、Shower、工作流和端侧模型；ClawGUI 已有任务控制、远程渠道、电脑/鸿蒙/iOS 后端、模型适配、Episode 和评测。
+2. **符合资产系统主线**：资产发现、解析、索引和 Android 权限在 Operit 内聚；跨设备查询、任务编排和模型路由在 ClawGUI 内聚。
+3. **运行模式可分离**：手机断网时仍可使用 Operit 本地能力；联网时由 ClawGUI 提供复杂规划、云端模型和远程设备协同。
+4. **替换成本可控**：替换 ClosePaw、PocketSearch、Jina、Qwen、Qdrant 或某个解析器时，只影响对应 Adapter/Provider，不要求修改全局任务模型。
+5. **便于效果优化**：端侧索引可以快速响应，服务端可以使用更大的多模态模型、Reranker、ColPali 或 EagleRAG 做高精度检索。
+6. **便于验证和观测**：手机端负责产生原始证据，控制面负责跨设备汇总、评测、审计和失败分析。
+
+#### 代价
+
+1. **双运行时复杂度**：Kotlin AndroidRuntime 与 Python ControlPlane 需要版本、心跳、取消、重试和事件顺序合同。
+2. **状态一致性问题**：全局 TaskSession、Android DeviceSession、AssetIndex 和 Skill 安装版本不能重复存储或互相覆盖。
+3. **部署形态增加**：需要同时支持单机 Android、Android+电脑控制面、云端控制面三种模式。
+4. **数据传输成本**：跨设备检索可能需要传输缩略图、OCR、向量结果或原始文件，必须由策略决定传输粒度。
+5. **调试链路变长**：一个失败可能发生在 Android 权限、解析器、模型、向量库、IPC 或远程设备，必须有统一 `trace_id` 和错误码。
+6. **重复能力风险**：两个项目都已有 Session、Memory、Provider 和 Tool 概念，若不先确定事实源，会出现双重记忆、双重模型配置和重复任务执行。
+
+#### 权责分配
+
+| 能力 | ClawGUI ControlPlane | Operit AndroidRuntime |
+|---|---|---|
+| 全局任务 | 创建、拆解、跨设备编排 | 执行本机子任务并上报状态 |
+| 会话 | 跨渠道和跨设备主会话 | Android DeviceSession 和本地执行上下文 |
+| 模型 | 云端/电脑模型路由、用量和策略 | 端侧 MNN/Llama/VLM/Embedding Provider |
+| 资产 | 跨设备资产目录和查询编排 | MediaStore/SAF、原始 URI、解析和本地索引 |
+| 检索 | 多设备结果融合、Reranker 和证据汇总 | 本地 FTS、向量和权限过滤 |
+| Skill | SkillIR、版本、晋升、审计和分发 | 已安装 Skill 的执行和本地状态 |
+| Android 操作 | 下发 `DeviceBackend` 命令 | 无障碍、Virtual Display、Shower、输入和截图 |
+| 远程电脑 | Gateway、Channel、Remote Agent | 不承担 |
+| 数据权限 | 全局策略和跨设备授权 | Android 系统权限和本地可读范围 |
+
+#### 必须采用的边界合同
+
+```text
+ControlPlane -> TaskCommand -> AndroidRuntime
+AndroidRuntime -> TaskEvent -> ControlPlane
+AndroidRuntime -> AssetQuery -> AssetResult
+ControlPlane -> ModelRequest -> ModelProvider
+AndroidRuntime -> EvidenceRef -> ControlPlane
+```
+
+合同必须包含：`request_id`、`trace_id`、`task_id`、`session_id`、`device_id`、`asset_id`、`contract_version`、`deadline`、`cancel_token`、`status`、`error_code` 和 `evidence_refs`。
+
+#### 三种部署形态
+
+| 形态 | 说明 | 适用阶段 | 主要风险 |
+|---|---|---|---|
+| Android 单机 | Operit 内嵌 ControlPlane Adapter，手机本地完成任务和资产检索 | P0/P1 原型和离线场景 | 跨设备能力有限，模型和索引资源受手机约束 |
+| 手机 + 电脑控制面 | ClawGUI 运行在电脑，Operit 作为 Android Provider | P1/P2 主力开发形态 | IPC、网络断开和状态同步 |
+| 云端控制面 + 多设备 | ClawGUI 服务端统一调度多个 Operit、电脑和浏览器节点 | P2/P3 全域场景 | 权限、数据上传、计费和多租户隔离 |
+
+#### 高内聚判断
+
+方案 C 只有在以下条件同时满足时才成立：
+
+1. ClawGUI 不直接读 Android 文件路径，只通过 `AssetId` 和 `EvidenceRef` 获取结果。
+2. Operit 不直接修改 ClawGUI 的全局 Session、Skill 版本和模型路由状态。
+3. Task、Asset、Episode、Skill、Evidence 采用中立合同，不直接共享 Python/Kotlin 类。
+4. 本地索引和远程索引允许不同实现，但必须绑定同一 `asset_id` 和版本信息。
+5. 任一侧停止或断网时，另一侧可以得到明确的 `paused`、`cancelled`、`expired` 或 `failed` 状态。
+
+#### 总根工程的最终判断
+
+如果“总根工程”指一个统一代码仓库，采用方案 C；如果“根运行时”指一个实际安装包，Android 端采用 Operit，控制面采用 ClawGUI；如果强行把两者合并成一个进程和一套全局状态，短期启动简单，长期会违背高内聚、低耦合目标。
+
+### 第一阶段实际改造根工程
+
+当前要在一份仓库上开始删减、修改和增加时，固定：
+
+```text
+仓库：E:\autoZhifa\AutoRefer\operit
+分支：zhifagui-integration
+角色：Android 端数字资产系统的第一阶段实现根
+```
+
+选择 Operit 作为第一阶段代码根，不等于放弃方案 C，而是先在 Android 运行面完成资产系统主链：
+
+```text
+Operit
+  -> AssetRecord / AssetSource / AssetParser
+  -> OCR / 文档解析 / 图片向量 / 本地索引
+  -> 混合检索 / 证据返回 / 资产动作
+```
+
+ClawGUI 在这一阶段只作为外部控制面和协议参考，暂不复制进 Operit；后续通过 `TaskCommand`、`TaskEvent`、`AssetQuery`、`AssetResult` 和 `EvidenceRef` 接入远程控制面。
+
+#### 第一阶段允许的改造范围
+
+1. 在 Operit 内新增 `domain/asset`、`capability/asset`、`infrastructure/index` 和 `adapter` 包。
+2. 将 `MemoryRepository` 中的文档分块、Embedding、向量索引和查询逻辑逐步提取到资产索引端口。
+3. 将 `ToolRegistration.kt` 中的文件、OCR、文档、搜索工具拆为独立能力注册器。
+4. 将 `VirtualDisplayManager.kt` 保留为旧适配器，虚拟屏核心接入 ClosePaw 前不删除现有入口。
+5. 接入 X-OmniClaw 相册扫描、PocketSearch 图片索引、Operit OCR 和文档解析，所有实现都通过 `AssetSource`、`AssetParser`、`EmbeddingProvider`、`VectorIndex` 和 `TextIndex`。
+
+#### 第一阶段禁止的改造范围
+
+1. 不把 ClawGUI 的 nanobot、Web UI、RL 或 Eval 整体复制进 Operit。
+2. 不把 ClosePaw、Aries、X-OmniClaw 或 PocketSearch 的应用 UI 整体复制进 Operit。
+3. 不在未建立行为基线、依赖扫描和回归测试前删除 Operit 旧实现。
+4. 不让资产索引模块直接依赖 GUI Agent、Shower、具体模型或具体向量数据库。
+
+#### 第一阶段完成标志
+
+只有同时满足以下条件，才进入下一阶段接入 ClawGUI 控制面：
+
+- Android 授权范围内的图片、媒体、文档、文本和代码可以登记为 `AssetRecord`；
+- OCR、文档解析、图片向量和全文索引可以独立运行并记录版本；
+- 增量扫描、失败重试、索引重建和权限撤回可观测；
+- 文字、图片和组合条件能够返回原始 URI、来源和证据位置；
+- 资产结果可以交给 Operit 工具继续查看、复制、编辑、分享或发送；
+- 旧工具和新资产接口可以并行运行，且核心领域层不依赖第三方实现。
 
 ## 二、五类迁移策略
 

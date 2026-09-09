@@ -71,7 +71,7 @@ AssetEvidence     URI、页码、时间戳、区域和来源
 AssetAction       对资产的查看、复制、编辑、分享、发送等动作
 ```
 
-根工程选择仍为 `Operit`，但根工程内的第一主线改为 `PersonalAssetIntelligence`；其他项目的吸收顺序以该子系统的准确率、覆盖率、延迟和可追溯性为评价标准。
+总工程采用 `ClawGUI + Operit` 双核心：`ClawGUI` 负责跨设备控制面，`Operit` 负责 Android 运行面；Android 运行面内的第一主线是 `PersonalAssetIntelligence`。其他项目的吸收顺序以资产子系统的准确率、覆盖率、延迟和可追溯性为评价标准。
 
 ## 资产系统优先的吸收顺序
 
@@ -112,9 +112,9 @@ AssetAction       对资产的查看、复制、编辑、分享、发送等动�
 
 ## 主工程决定
 
-选择 `Operit` 作为产品根工程。
+选择 `ClawGUI + Operit` 作为总工程，分别承担控制面根和 Android 运行面根。
 
-理由：它已经具备原生 Android 应用壳、会话运行时、模型 Provider、端侧模型、工具注册、MCP、工作流、定时任务、文件工具、OCR、Office/PDF 转换、向量记忆、Shower 和虚拟屏入口。以它为根工程，可以保留最多现成能力，并减少 Python 与 Android 双宿主造成的状态、权限和生命周期重复。
+理由：单独使用 ClawGUI 会重复实现 Android 原生资产和权限能力，单独使用 Operit 又会把跨设备控制面塞回 Android 单体。双核心总工程保留双方最强边界，通过中立的 Task、Device、Asset、Episode、Skill 和 Evidence 合同降低耦合。
 
 其他主工程候选的定位：
 
@@ -614,6 +614,12 @@ app/src/main/java/com/ai/assistance/operit/
 4. 为每个端口定义输入、输出、错误、取消和资源释放合同。
 5. 先为接口和替代路径设计测试，再开始实际迁移。
 6. 所有删除动作必须等依赖扫描、回归测试和 ROM 验证完成后执行。
+
+## 第一阶段单仓库根工程
+
+总架构是 `ClawGUI + Operit` 双核心，但第一阶段只在 `AutoRefer/operit` 的 `zhifagui-integration` 分支改造。原因是当前主目标是 Android 端数字资产理解、索引与执行，Operit 已具备文件、OCR、Office/PDF、向量、工作流和后台服务，能够以最少跨运行时成本建立资产主链。
+
+ClawGUI 暂不复制进 Operit，只保留为外部控制面和远程协议参考。等 `AssetRecord`、解析器、索引、检索、证据和资产动作链稳定后，再通过中立合同接入 ClawGUI。
 
 ## 直接实施顺序
 
