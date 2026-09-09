@@ -73,6 +73,8 @@ AssetAction       对资产的查看、复制、编辑、分享、发送等动�
 
 总工程采用 `ClawGUI + Operit` 双核心：`ClawGUI` 负责跨设备控制面，`Operit` 负责 Android 运行面；Android 运行面内的第一主线是 `PersonalAssetIntelligence`。其他项目的吸收顺序以资产子系统的准确率、覆盖率、延迟和可追溯性为评价标准。
 
+记忆系统采用分层事实源：Operit 负责端侧工作记忆和资产索引，ClawGUI 负责跨设备长期记忆与 Skill 生命周期，PowerMem 提供记忆演化策略，LLMWiki 类项目作为可审计的知识编译适配器。资产记录、个人事实、知识页面和可执行技能不得共用一张事实表。
+
 ## 资产系统优先的吸收顺序
 
 ### 第一层：资产发现和授权
