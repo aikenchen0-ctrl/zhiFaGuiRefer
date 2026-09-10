@@ -23,7 +23,64 @@
 | 未脱敏照片 EXIF 地理位置 | `MediaStore` + EXIF | API 29+ `ACCESS_MEDIA_LOCATION`，并需运行时授权 | GPS 属于高敏感数据；默认只读取经过脱敏的位置信息或不读取位置 |
 | 向量化期间保持进程运行 | WorkManager，必要时用户发起的前台任务 | 长任务需前台服务通知；API 34+ 声明对应 FGS 类型和权限；API 33+ 通知显示另需 `POST_NOTIFICATIONS` | Android 12+ 限制后台启动前台服务；Android 15+ `dataSync` 前台服务 24 小时内累计最多 6 小时 |
 
-## 二、权限不是能力本身
+## 二、其它 App 下的文件
+
+### 可以读取的情况
+
+1. **其它 App 写入共享媒体库的图片、视频和音频**：文件出现在 `MediaStore.Images`、`MediaStore.Video` 或 `MediaStore.Audio` 时，按媒体类型申请 `READ_MEDIA_*`（API 33+）或旧版 `READ_EXTERNAL_STORAGE`。这类文件可以被扫描、向量化和检索，但仍受 Android 14 部分照片授权影响。[共享媒体文件](https://developer.android.com/training/data-storage/shared/media)
+2. **其它 App 写入公共共享目录的普通文件**：优先通过 SAF 让用户选择文件或目录。用户授权的 `content://` URI 只代表该文件或目录，不代表整个对方 App。
+3. **对方主动分享的文件**：对方通过 `FileProvider`、`ContentProvider`、`ACTION_SEND` 或 `ACTION_OPEN_DOCUMENT` 返回 URI 时，可以在授权范围内读取。URI 访问可能是临时的，也可能允许持久化；不能从 URI 推导出对方其它文件。[FileProvider](https://developer.android.com/reference/androidx/core/content/FileProvider)
+4. **对方提供的公开或签名接口**：例如导出 `ContentProvider`、文档提供器、备份导出或云端 API。实际可读字段和生命周期由对方协议决定，需把来源类型记录为 `provider` 或 `cloud`。
+
+### 普通应用不能直接读取的情况
+
+| 位置或数据 | 普通应用结果 | 原因 |
+|---|---|---|
+| 其它 App 的内部目录 `/data/data/<package>`、`/data/user/0/<package>` | 不可读 | Android 应用沙箱和文件权限隔离；Android 11 目标应用不能再依赖旧的 world-readable 例外 |
+| 其它 App 的外部专属目录 `/Android/data/<package>` | Android 11+ 通常不可读 | Scoped Storage 禁止跨 App 访问专属目录；SAF 也禁止用户选择该目录 |
+| 其它 App 的 OBB 目录 `/Android/obb/<package>` | Android 11+ 不能通过 SAF 选择 | 系统对 OBB 目录做了专门限制 |
+| 其它 App 的私有数据库、缓存、密钥和登录令牌 | 不可读 | 不属于共享存储，也没有对外授权接口；即使知道包名和文件路径也不能打开 |
+| 其它 App 的 `cache`、临时下载和未导出的附件 | 通常不可读或随时失效 | 目录私有、文件可能被清理，不能作为稳定索引源 |
+
+Android 官方明确说明：Android 11 及以上不能访问其它 App 的内部数据目录和外部专属目录；即使拥有 `MANAGE_EXTERNAL_STORAGE`，也不能访问其它 App 的 `Android/data` 专属目录。[Android 11 存储变化](https://developer.android.com/about/versions/11/privacy/storage) [所有文件访问](https://developer.android.com/training/data-storage/manage-all-files)
+
+### `MANAGE_EXTERNAL_STORAGE` 能做什么，不能做什么
+
+它可以扩大对共享存储和 `MediaStore.Files` 的读取/写入范围，也覆盖 `/sdcard/Android/media` 等共享区域；但它不是“读取任意 App 数据”的权限，不能进入其它 App 的内部沙箱、`Android/data` 和大部分 `Android` 专属目录。它还需要用户在系统设置中单独开启，且会增加分发、审核和隐私解释成本。
+
+因此，产品不能承诺“读取手机上所有 App 的所有文件”，准确表述应为：
+
+> 在用户授权范围内，索引共享媒体、用户选择的文件/目录、对方主动分享的 URI 以及公开数据提供器；其它 App 私有数据除非对方提供接口或设备处于受控特权环境，否则不可读取。
+
+### 其它 App 文件的索引策略
+
+每条资产记录都要标记来源和访问状态：
+
+```text
+sourceKind: media_store | saf_uri | provider | cloud | app_private
+accessScope: app_owned | uri | partial | full | inaccessible
+ownerPackage: 可选，对方 App 包名
+grantPersisted: 是否持久化 URI 授权
+lastAccessCheckAt / revokedAt
+```
+
+处理规则：
+
+1. 共享媒体扫描只删除确认已从 MediaStore 消失的记录；partial 授权下“当前看不到”只能标记为 `inaccessible`。
+2. SAF 目录授权要保存树 URI、授权标志和最近一次成功读取时间；URI 失效后暂停该来源，不删除其它来源的索引。
+3. 对方 App 通过 URI 分享的文件，索引可以保留派生文本和向量，但原 URI 无法重新打开时禁止查看、分享和云端上传。
+4. 任何需要 Root、Shizuku、ADB 或厂商特权的路径都单独标记为 `privileged`，不能伪装成普通 Android 权限能力。
+5. 检索结果必须显示来源 App、授权范围和当前可访问状态，避免返回用户无法打开的结果。
+
+### 无法改变的系统约束
+
+- 普通应用不能跨越其它 App 的内部沙箱；这是 Android 的安全边界，不是换一个文件库就能解决的问题。
+- Android 11+ 对 `Android/data`、`Android/obb` 的 SAF 限制不能通过普通目录选择器绕过。
+- `MANAGE_EXTERNAL_STORAGE` 只能扩大共享存储访问，不能替代对方 App 的导出接口。
+- URI 授权只能覆盖被授予的 URI；对方撤销、删除或移动文件后，持久化记录也不保证仍可读。
+- Root、系统签名、可调试构建或设备管理策略可以改变部分边界，但它们属于受控特权部署，不应作为普通用户设备的默认兼容承诺。
+
+## 三、权限不是能力本身
 
 以下能力与文件读取权限分开治理：
 
@@ -35,7 +92,7 @@
 | 长期后台扫描 | WorkManager、前台服务、设备厂商自启动/电池策略 | 这是调度和存活问题，不是扩大文件授权的理由 |
 | 云端 Embedding、OCR 或 VLM | `INTERNET` 加用户数据外传同意 | `INTERNET` 本身不会弹权限框；必须单独显示上传范围、模型、费用、保留期和失败降级策略 |
 
-## 三、Android 版本和授权状态
+## 四、Android 版本和授权状态
 
 ### API 28 及以下
 
@@ -63,7 +120,7 @@ Scoped Storage 默认生效。应用自己的 MediaStore 内容和应用专属�
 
 如果用 `dataSync` 前台服务做长时间全库向量化，要实现超时停止和断点续跑；不要假设一个前台服务可以无限运行。大批量、用户主动触发的传输或处理应评估 WorkManager、用户发起数据传输任务或分段任务。
 
-## 四、参考项目源码中的权限问题
+## 五、参考项目源码中的权限问题
 
 | 项目和源码 | 已观察到的做法 | 整合时的结论 |
 |---|---|---|
@@ -73,7 +130,7 @@ Scoped Storage 默认生效。应用自己的 MediaStore 内容和应用专属�
 | `X-OmniClaw` `AlbumScanner.kt` | 以 MediaStore 增量扫描相册并保存 URI/元数据 | 适合与 partial 授权结合，但扫描游标必须与授权范围和可见性版本绑定 |
 | `PocketSearch` `IndexService` | 使用平台媒体选择/相册 API，先同步 live IDs，再批量编码并清理陈旧记录 | 可吸收陈旧数据清理，但必须区分“用户删除”和“当前没有权限看到” |
 
-## 五、最小权限方案
+## 六、最小权限方案
 
 ### 模式 A：用户选定内容
 
@@ -104,7 +161,7 @@ Scoped Storage 默认生效。应用自己的 MediaStore 内容和应用专属�
 
 适合文件管理器、备份、杀毒或明确的“设备文件搜索”产品，不适合作为普通聊天助手的默认权限。
 
-## 六、索引数据合同必须记录授权状态
+## 七、索引数据合同必须记录授权状态
 
 ```text
 AssetRecord
@@ -123,7 +180,7 @@ AssetRecord
 4. partial 结果只允许增量更新可见集合，不允许执行全量删除同步。
 5. 云端处理只上传用户明确允许的资产或派生内容，并记录模型、时间和撤回状态。
 
-## 七、实施前验收清单
+## 八、实施前验收清单
 
 - [ ] API 28、32、33、34、35 至少覆盖一次授权和撤销测试；
 - [ ] 全库、部分媒体、单 URI、目录 URI、权限拒绝和权限被系统重置均有状态；
