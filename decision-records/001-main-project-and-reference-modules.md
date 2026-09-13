@@ -1,6 +1,6 @@
 # 主工程与高价值参考模块决策
 
-状态：整合前准备基线。后续参考项目分析、模块取舍和验证结论持续更新到本文。
+状态：历史/扩展材料。本文保留完整资产系统推演、早期取舍和源码核对记录；当前根工程和迁移结论以 [`002-source-review-and-final-integration-list.md`](002-source-review-and-final-integration-list.md) 为准。
 
 ## 目标
 
