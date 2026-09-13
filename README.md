@@ -181,6 +181,7 @@ Episode -> SkillIR -> Candidate -> Validated -> Promoted -> SkillPackage
 
 - `references/`：项目定位、源码索引和证据记录
 - `architecture/`：分层架构、执行链路和边界
+- [`architecture/reference-absorption-plan.md`](architecture/reference-absorption-plan.md)：AI 浏览器专项架构、参考项目吸收方案和实施清单
 - `specs/`：统一动作、轨迹、技能、验证和回退规范
 - `experiments/`：最小复现实验记录
 - `evidence/`：来源、许可证和事实核验
