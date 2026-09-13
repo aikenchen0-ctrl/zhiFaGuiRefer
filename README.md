@@ -50,6 +50,8 @@ Android 非接口化 GUI Agent 技术参考仓库。
 
 手机个人文件、图片向量化和检索的权限矩阵、Android 版本差异、参考项目权限问题及最小权限方案，见 [`decision-records/003-android-asset-permission-matrix.md`](decision-records/003-android-asset-permission-matrix.md)。
 
+Android 端数据库、全文/向量索引、端云同步和未来检索兼容性，见 [`decision-records/004-android-database-architecture-selection.md`](decision-records/004-android-database-architecture-selection.md)。
+
 ## 整合注意
 
 - `Aries-AI`：补齐 API 30-33 的旧 Virtual Display 接口，并验证 EGL、IME、任务迁移和输入返回值；ROM 声明必须以真机证据为准。
